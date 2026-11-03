@@ -21,7 +21,6 @@ mkdir -p \
 touch /var/www/html/database/database.sqlite
 chown -R www-data:www-data /var/www/html/database /var/www/html/storage /var/www/html/bootstrap/cache
 
-php artisan optimize:clear
 php artisan migrate --force
 php artisan db:seed --force
 php artisan config:cache
