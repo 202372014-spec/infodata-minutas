@@ -6,8 +6,8 @@ if [[ -n "${APP_KEY_BASE64:-}" ]]; then
 fi
 
 if [[ -z "${APP_KEY:-}" ]]; then
-    echo "APP_KEY no esta configurada."
-    exit 1
+    export APP_KEY="base64:$(php -r 'echo base64_encode(random_bytes(32));')"
+    echo "APP_KEY generada automaticamente para esta instancia."
 fi
 
 mkdir -p \
