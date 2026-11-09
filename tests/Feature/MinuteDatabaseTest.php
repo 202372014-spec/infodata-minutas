@@ -3,12 +3,23 @@
 namespace Tests\Feature;
 
 use App\Models\Minute;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class MinuteDatabaseTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->actingAs(User::factory()->create([
+            'role' => 'administrator',
+            'is_active' => true,
+        ]));
+    }
 
     public function test_the_home_page_loads_minutes_from_the_database(): void
     {
@@ -60,6 +71,11 @@ class MinuteDatabaseTest extends TestCase
         $this->assertDatabaseHas('minutes', [
             'folio' => 'INF-269999',
             'source_service' => 'SAE-SRV-9999',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'minute.created',
+            'subject_id' => 'INF-269999',
         ]);
     }
 

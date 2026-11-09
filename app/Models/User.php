@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'role', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -27,6 +27,31 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+        ];
+    }
+
+    public function frontendProfile(): array
+    {
+        $labels = [
+            'administrator' => 'Administrador',
+            'consultant' => 'Consultor',
+            'auditor' => 'Consulta / auditoría',
+        ];
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'role' => $this->role,
+            'roleLabel' => $labels[$this->role] ?? $this->role,
+            'status' => $this->is_active ? 'Activo' : 'Inactivo',
+            'permissions' => [
+                'createMinutes' => in_array($this->role, ['administrator', 'consultant'], true),
+                'manageUsers' => $this->role === 'administrator',
+                'viewAudit' => in_array($this->role, ['administrator', 'auditor'], true),
+                'viewConfiguration' => $this->role === 'administrator',
+            ],
         ];
     }
 }

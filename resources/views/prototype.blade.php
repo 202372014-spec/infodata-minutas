@@ -8,6 +8,7 @@
     <meta name="description" content="Prototipo navegable del sistema de gestión y envío de minutas de servicio de Infodata.">
     <script>
         window.__MINUTES__ = @json($initialMinutes ?? []);
+        window.__CURRENT_USER__ = @json($initialUser ?? null);
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -61,6 +62,7 @@
                 </label>
                 <div class="login-options"><label class="check-label"><input type="checkbox" checked> Recordarme</label><button type="button" class="link-button">¿Olvidaste tu contraseña?</button></div>
                 <button class="button primary wide" type="submit">Entrar a la demostración</button>
+                <p class="login-error is-hidden" id="loginError" role="alert"></p>
                 <p class="demo-note"><span></span> Base local de demostración; no se envían datos reales.</p>
             </form>
         </div>
@@ -73,22 +75,22 @@
                 <button class="nav-item is-active" data-view="dashboard"><svg class="icon"><use href="#i-grid"/></svg><span>Resumen</span></button>
                 <button class="nav-item" data-view="minutas"><svg class="icon"><use href="#i-file"/></svg><span>Minutas</span><b class="nav-count" id="navMinuteCount">0</b></button>
                 <button class="nav-item" data-view="correos"><svg class="icon"><use href="#i-mail"/></svg><span>Correos enviados</span></button>
-                <button class="nav-item" data-view="configuracion"><svg class="icon"><use href="#i-settings"/></svg><span>Configuración</span></button>
+                <button class="nav-item" data-view="configuracion" data-admin-only><svg class="icon"><use href="#i-settings"/></svg><span>Configuración</span></button>
             </nav>
             <div class="connection-card"><div class="status-dot"></div><div><strong>Aspel SAE</strong><small>Modo demostración</small></div></div>
-            <div class="sidebar-user"><span class="avatar">JS</span><div><strong>Jonatan Salazar</strong><small>Administrador</small></div><button id="logoutButton" aria-label="Cerrar sesión"><svg class="icon"><use href="#i-logout"/></svg></button></div>
+            <div class="sidebar-user"><span class="avatar" data-user-initials>JS</span><div><strong data-user-name>Jonatan Salazar</strong><small data-user-role>Administrador</small></div><button id="logoutButton" aria-label="Cerrar sesión"><svg class="icon"><use href="#i-logout"/></svg></button></div>
         </aside>
 
         <div class="workspace">
             <header class="topbar">
                 <button class="icon-button mobile-menu" id="menuButton" aria-label="Abrir menú"><svg class="icon"><use href="#i-menu"/></svg></button>
                 <div><strong id="topbarTitle">Resumen general</strong><small id="topbarDate">Demostración local</small></div>
-                <div class="topbar-actions"><span class="demo-chip">Base SQLite activa</span><button class="icon-button" aria-label="Notificaciones"><svg class="icon"><use href="#i-bell"/></svg><i></i></button><span class="avatar">JS</span></div>
+                <div class="topbar-actions"><span class="demo-chip">Base SQLite activa</span><button class="icon-button" aria-label="Notificaciones"><svg class="icon"><use href="#i-bell"/></svg><i></i></button><span class="avatar" data-user-initials>JS</span></div>
             </header>
 
             <main class="main-content">
                 <section class="view is-active" id="view-dashboard" data-title="Resumen general">
-                    <div class="page-heading"><div><span class="eyebrow">Panel de control</span><h1>Buen día, Jonatan</h1><p>Este es el estado general de las minutas y pólizas de servicio.</p></div><div class="heading-actions"><button class="button secondary" data-action="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Actualizar información</button><button class="button primary" data-action="new-minute"><svg class="icon"><use href="#i-plus"/></svg>Nueva minuta</button></div></div>
+                    <div class="page-heading"><div><span class="eyebrow">Panel de control</span><h1>Buen día, <span id="greetingName">Jonatan</span></h1><p>Este es el estado general de las minutas y pólizas de servicio.</p></div><div class="heading-actions"><button class="button secondary" data-action="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Actualizar información</button><button class="button primary" data-action="new-minute"><svg class="icon"><use href="#i-plus"/></svg>Nueva minuta</button></div></div>
                     <div class="metric-grid">
                         <article class="metric-card teal"><div class="metric-icon"><svg class="icon"><use href="#i-file"/></svg></div><div><span>Total de minutas</span><strong id="metricTotal">0</strong><small>Registros en SQLite</small></div></article>
                         <article class="metric-card green"><div class="metric-icon"><svg class="icon"><use href="#i-check"/></svg></div><div><span>Minutas enviadas</span><strong id="metricSent">0</strong><small id="metricSentRate">0% del total</small></div></article>
@@ -121,7 +123,7 @@
                     <div class="page-heading"><div><span class="eyebrow">Administración</span><h1>Configuración</h1><p>Parámetros del sistema, automatizaciones y conexión de datos.</p></div><span class="role-chip"><svg class="icon"><use href="#i-user"/></svg>Solo administradores</span></div>
                     <div class="settings-layout">
                         <nav class="settings-nav" id="settingsNav">
-                            <button class="is-active" data-setting="general">Datos generales</button><button data-setting="mail">Correos y destinatarios</button><button data-setting="templates">Plantillas</button><button data-setting="automation">Automatizaciones</button><button data-setting="sae">Conexión con SAE</button><button data-setting="users">Usuarios y permisos</button>
+                            <button class="is-active" data-setting="general">Datos generales</button><button data-setting="mail">Correos y destinatarios</button><button data-setting="templates">Plantillas</button><button data-setting="automation">Automatizaciones</button><button data-setting="sae">Conexión con SAE</button><button data-setting="users">Usuarios y permisos</button><button data-setting="audit">Auditoría</button>
                         </nav>
                         <article class="panel settings-content" id="settingsContent"></article>
                     </div>

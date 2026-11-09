@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Minute;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -12,8 +13,13 @@ class MinuteController extends Controller
 {
     public function index(): View
     {
+        $user = auth()->user();
+
         return view('prototype', [
-            'initialMinutes' => $this->frontendCollection($this->queryMinutes()->get()),
+            'initialMinutes' => $user
+                ? $this->frontendCollection($this->queryMinutes()->get())
+                : collect(),
+            'initialUser' => $user?->frontendProfile(),
         ]);
     }
 
@@ -25,17 +31,19 @@ class MinuteController extends Controller
             'data' => $minutes,
             'meta' => [
                 'count' => $minutes->count(),
-                'source' => 'SQLite local',
+                'source' => 'SQLite de demostración',
             ],
         ]);
     }
 
-    public function show(Minute $minute): JsonResponse
+    public function show(Request $request, Minute $minute, AuditLogger $audit): JsonResponse
     {
+        $audit->record($request, 'minute.viewed', 'minute', $minute->folio);
+
         return response()->json(['data' => $this->toFrontend($minute)]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, AuditLogger $audit): JsonResponse
     {
         $validated = $request->validate([
             'id' => ['required', 'string', 'max:30', 'unique:minutes,folio'],
@@ -82,8 +90,13 @@ class MinuteController extends Controller
             'pending_activity' => $validated['pending'] ?? 'Sin actividades pendientes.',
         ]);
 
+        $audit->record($request, 'minute.created', 'minute', $minute->folio, [
+            'sourceService' => $minute->source_service,
+            'client' => $minute->client_name,
+        ]);
+
         return response()->json([
-            'message' => "La minuta {$minute->folio} se guardó en la base local.",
+            'message' => "La minuta {$minute->folio} se guardó en la base de demostración.",
             'data' => $this->toFrontend($minute),
         ], 201);
     }

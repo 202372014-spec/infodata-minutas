@@ -1,63 +1,7 @@
 import './bootstrap';
 
-let minutes = Array.isArray(window.__MINUTES__) && window.__MINUTES__.length ? window.__MINUTES__ : [
-    {
-        id: 'INF-260301', client: 'Comercializadora del Centro', date: '01/10/2026', start: '09:00', end: '10:30', used: 1.5,
-        policy: 'POL-1042', contracted: 20, available: 12, validity: 'Vigente', adviser: 'Maricela Cázares',
-        reporter: 'Ana Ruiz', recipient: 'Ana Ruiz', email: 'ana.ruiz@comercializadora.mx', serviceStatus: 'Concluido', sendStatus: 'Enviada', sentAt: '01/10/2026 11:04',
-        issue: 'Aspel SAE no permitía generar el reporte de existencias por almacén.',
-        work: 'Se validaron los parámetros del reporte, se reconstruyeron los índices y se verificó la generación correcta del documento.',
-        pending: 'Sin actividades pendientes.'
-    },
-    {
-        id: 'INF-260302', client: 'Transportes del Bajío', date: '01/10/2026', start: '12:00', end: '14:00', used: 2,
-        policy: 'POL-0988', contracted: 10, available: 1, validity: 'Vigente', adviser: 'Carlos Consultor',
-        reporter: 'Luis Mendoza', recipient: 'Patricia León', email: 'sistemas@transportesbajio.mx', serviceStatus: 'Con actividad pendiente', sendStatus: 'Pendiente', sentAt: '—',
-        issue: 'Error de timbrado al emitir comprobantes desde el módulo de facturación.',
-        work: 'Se actualizó la configuración del PAC y se realizaron pruebas con un comprobante de demostración.',
-        pending: 'Renovar el certificado de sello digital antes del 08/10/2026.'
-    },
-    {
-        id: 'INF-260303', client: 'Grupo Textil Rivera', date: '02/10/2026', start: '08:30', end: '09:30', used: 1,
-        policy: 'POL-1120', contracted: 25, available: 18, validity: 'Vigente', adviser: 'Laura Rodríguez',
-        reporter: 'Sofía Rivera', recipient: 'Sofía Rivera', email: 'sofia@textilrivera.mx', serviceStatus: 'Concluido', sendStatus: 'Enviada', sentAt: '02/10/2026 10:02',
-        issue: 'Los usuarios no podían consultar movimientos históricos del inventario.',
-        work: 'Se ajustaron los permisos de consulta y se regeneraron las vistas de movimientos históricos.',
-        pending: 'Sin actividades pendientes.'
-    },
-    {
-        id: 'INF-260304', client: 'Clínica San Gabriel', date: '02/10/2026', start: '11:00', end: '13:15', used: 2.25,
-        policy: 'POL-0914', contracted: 10, available: 0.8, validity: 'Vigente', adviser: 'Maricela Cázares',
-        reporter: 'Eduardo Nieto', recipient: 'Karla Sánchez', email: 'administracion@clinicasangabriel.mx', serviceStatus: 'Concluido', sendStatus: 'Error', sentAt: '02/10/2026 14:10',
-        issue: 'La estación de caja perdió conexión con la base de datos de Aspel SAE.',
-        work: 'Se restableció la ruta de red, se verificó el cliente Firebird y se probaron operaciones de consulta.',
-        pending: 'Validar con infraestructura la estabilidad del enlace de red.'
-    },
-    {
-        id: 'INF-260305', client: 'Ferretería Modelo', date: '02/10/2026', start: '15:00', end: '16:00', used: 1,
-        policy: 'POL-1107', contracted: 15, available: 9.5, validity: 'Vigente', adviser: 'Carlos Consultor',
-        reporter: 'Miguel Torres', recipient: 'Miguel Torres', email: 'miguel@ferreteriamodelo.mx', serviceStatus: 'Concluido', sendStatus: 'Enviada', sentAt: '02/10/2026 16:22',
-        issue: 'Diferencia entre existencias físicas y existencias mostradas por el sistema.',
-        work: 'Se revisaron movimientos pendientes y se explicó el proceso de recálculo de existencias.',
-        pending: 'Realizar inventario físico del almacén principal.'
-    },
-    {
-        id: 'INF-260306', client: 'Constructora Horizonte', date: '03/10/2026', start: '08:00', end: '09:45', used: 1.75,
-        policy: 'POL-1051', contracted: 12, available: 6, validity: 'Vigente', adviser: 'Laura Rodríguez',
-        reporter: 'Daniel Campos', recipient: 'Mónica Vela', email: 'sistemas@horizonte.mx', serviceStatus: 'Concluido', sendStatus: 'Pendiente', sentAt: '—',
-        issue: 'El catálogo de clientes mostraba registros duplicados después de una importación.',
-        work: 'Se identificó el lote duplicado y se documentó el procedimiento de depuración para autorización.',
-        pending: 'Autorizar la depuración en una ventana de mantenimiento.'
-    },
-    {
-        id: 'INF-260307', client: 'Distribuidora Nova', date: '03/10/2026', start: '10:00', end: '11:30', used: 1.5,
-        policy: 'POL-0875', contracted: 8, available: 0.7, validity: 'Por vencer', adviser: 'Maricela Cázares',
-        reporter: 'Raúl Medina', recipient: 'Raúl Medina', email: 'raul.medina@nova.mx', serviceStatus: 'Concluido', sendStatus: 'Enviada', sentAt: '03/10/2026 12:01',
-        issue: 'Falla al respaldar la base de datos desde el administrador de periodos.',
-        work: 'Se corrigieron permisos del directorio de respaldos y se verificó la integridad del archivo generado.',
-        pending: 'Renovar la póliza antes del próximo servicio.'
-    }
-];
+let minutes = Array.isArray(window.__MINUTES__) ? window.__MINUTES__ : [];
+let currentUser = window.__CURRENT_USER__ ?? null;
 
 let mailItems = [
     { id: 1, minute: 'INF-260307', client: 'Distribuidora Nova', date: '03/10/2026 12:01', type: 'Minuta terminada', to: 'raul.medina@nova.mx', cc: 'atencion@infodata.mx', status: 'Enviado', subject: 'Minuta de servicio INF-260307 – Distribuidora Nova', error: '' },
@@ -67,11 +11,8 @@ let mailItems = [
     { id: 5, minute: 'INF-260301', client: 'Comercializadora del Centro', date: '01/10/2026 11:04', type: 'Minuta terminada', to: 'ana.ruiz@comercializadora.mx', cc: 'atencion@infodata.mx', status: 'Enviado', subject: 'Minuta de servicio INF-260301 – Comercializadora del Centro', error: '' }
 ];
 
-const users = [
-    { name: 'Jonatan Salazar', email: 'jonatan@infodata.mx', role: 'Administrador', status: 'Activo' },
-    { name: 'Maricela Cázares', email: 'maricela@infodata.mx', role: 'Consultor', status: 'Activo' },
-    { name: 'Carlos Consultor', email: 'carlos@infodata.mx', role: 'Consultor', status: 'Activo' }
-];
+let users = [];
+let auditLogs = [];
 
 const automatedServices = {
     'SAE-SRV-4832': {
@@ -102,7 +43,7 @@ const automatedServices = {
 
 const icon = (name) => `<svg class="icon"><use href="#i-${name}"/></svg>`;
 const byId = (id) => document.getElementById(id);
-const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+let csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 let selectedMailId = mailItems[0].id;
 let selectedMinuteId = null;
 let toastTimer;
@@ -121,6 +62,95 @@ function showToast(message) {
     toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 3000);
 }
 
+function updateCsrfToken(token) {
+    if (!token) return;
+    csrfToken = token;
+    document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', token);
+}
+
+function userInitials(name) {
+    return String(name ?? '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0].toUpperCase())
+        .join('') || 'ID';
+}
+
+function applyUserToInterface(user) {
+    const initials = userInitials(user.name);
+    document.querySelectorAll('[data-user-name]').forEach((element) => { element.textContent = user.name; });
+    document.querySelectorAll('[data-user-role]').forEach((element) => { element.textContent = user.roleLabel; });
+    document.querySelectorAll('[data-user-initials]').forEach((element) => { element.textContent = initials; });
+    byId('greetingName').textContent = user.name.split(' ')[0];
+
+    document.querySelectorAll('[data-admin-only]').forEach((element) => {
+        element.classList.toggle('is-hidden', !user.permissions.viewConfiguration);
+    });
+    document.querySelectorAll('[data-action="new-minute"]').forEach((element) => {
+        element.classList.toggle('is-hidden', !user.permissions.createMinutes);
+    });
+}
+
+function showApplication(user) {
+    currentUser = user;
+    applyUserToInterface(user);
+    byId('loginError').classList.add('is-hidden');
+    byId('loginScreen').classList.add('is-hidden');
+    byId('appShell').classList.remove('is-hidden');
+    navigate('dashboard');
+}
+
+function showLogin() {
+    currentUser = null;
+    minutes = [];
+    renderDashboard();
+    filterMinutes();
+    byId('appShell').classList.add('is-hidden');
+    byId('loginScreen').classList.remove('is-hidden');
+}
+
+async function requestJson(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: 'same-origin',
+        ...options,
+        headers: {
+            Accept: 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            ...(options.headers ?? {}),
+        },
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        if (response.status === 401 && currentUser) showLogin();
+        const firstValidationError = Object.values(payload.errors ?? {}).flat()[0];
+        throw new Error(firstValidationError || payload.message || 'No fue posible completar la operación.');
+    }
+
+    updateCsrfToken(payload.csrfToken);
+    return payload;
+}
+
+async function login(email, password, remember) {
+    const payload = await requestJson('/api/acceso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, remember }),
+    });
+
+    showApplication(payload.data);
+    await loadMinutesFromDatabase(false);
+    showToast(payload.message);
+}
+
+async function logout() {
+    const payload = await requestJson('/api/salir', { method: 'POST' });
+    showLogin();
+    showToast(payload.message);
+}
+
 function nextMinuteId() {
     const minuteNumbers = minutes.map((minute) => Number(minute.id.replace(/\D/g, '')) || 0);
     const lastNumber = minuteNumbers.length ? Math.max(...minuteNumbers) : 260300;
@@ -129,38 +159,24 @@ function nextMinuteId() {
 
 async function loadMinutesFromDatabase(showMessage = true) {
     try {
-        const response = await fetch('/api/minutas', {
-            headers: { Accept: 'application/json' }
-        });
-
-        if (!response.ok) throw new Error('No fue posible consultar la base local.');
-
-        const payload = await response.json();
+        const payload = await requestJson('/api/minutas');
         minutes = Array.isArray(payload.data) ? payload.data : [];
         renderDashboard();
         filterMinutes();
-        if (showMessage) showToast(`${minutes.length} minutas consultadas desde SQLite.`);
+        if (showMessage) showToast(`${minutes.length} minutas consultadas desde la base de demostración.`);
     } catch (error) {
         showToast(error.message || 'Ocurrió un error al consultar la base local.');
     }
 }
 
 async function saveMinuteToDatabase(minute) {
-    const response = await fetch('/api/minutas', {
+    const payload = await requestJson('/api/minutas', {
         method: 'POST',
         headers: {
-            Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken,
         },
         body: JSON.stringify(minute),
     });
-
-    const payload = await response.json();
-    if (!response.ok) {
-        const firstValidationError = Object.values(payload.errors ?? {}).flat()[0];
-        throw new Error(firstValidationError || payload.message || 'No fue posible guardar la minuta.');
-    }
 
     return payload.data;
 }
@@ -243,6 +259,9 @@ function renderDashboard() {
 function minuteRow(minute) {
     const percentage = Math.max(0, Math.min(100, Math.round((minute.available / minute.contracted) * 100)));
     const level = percentage <= 10 ? 'critical' : percentage <= 25 ? 'warning' : '';
+    const resendButton = currentUser?.permissions.createMinutes
+        ? `<button class="table-action" data-resend="${minute.id}" title="Reenviar minuta">${icon('send')}</button>`
+        : '';
     return `<tr>
         <td><strong>${minute.id}</strong><br><small>${minute.policy}</small></td>
         <td><div class="client-cell"><strong>${minute.client}</strong><small>${minute.email}</small></div></td>
@@ -251,7 +270,7 @@ function minuteRow(minute) {
         <td class="hours-cell"><div class="hours-top"><span>${minute.available} de ${minute.contracted} h</span><strong>${percentage}%</strong></div><div class="progress ${level}"><span style="width:${percentage}%"></span></div></td>
         <td><div class="service-text" title="${minute.issue}">${minute.issue}</div></td>
         <td><span class="badge ${statusClass(minute.sendStatus)}">${minute.sendStatus}</span></td>
-        <td class="actions-cell"><div class="row-actions"><button class="table-action" data-minute="${minute.id}" title="Ver detalle">${icon('eye')}</button><button class="table-action" data-resend="${minute.id}" title="Reenviar minuta">${icon('send')}</button></div></td>
+        <td class="actions-cell"><div class="row-actions"><button class="table-action" data-minute="${minute.id}" title="Ver detalle">${icon('eye')}</button>${resendButton}</div></td>
     </tr>`;
 }
 
@@ -346,7 +365,8 @@ const settingsTemplates = {
     templates: () => `<div class="settings-title"><h2>Plantillas de correo</h2><p>Mensajes utilizados para minutas concluidas y alertas de póliza.</p></div><div class="form-grid"><label class="form-field full">Asunto de minuta<input value="Minuta de servicio {{folio}} – {{cliente}}"></label><label class="form-field full">Mensaje de minuta<textarea>Estimado/a {{contacto}}:\n\nAdjuntamos la minuta del servicio realizado el {{fecha_servicio}}.\n\nQuedamos a sus órdenes.</textarea></label><label class="form-field full">Asunto de alerta<input value="Alerta: póliza {{poliza}} con {{porcentaje}}% disponible"></label><label class="form-field full">Mensaje de alerta<textarea>Estimado/a {{contacto}}:\n\nLa póliza {{poliza}} dispone de {{horas_disponibles}} horas, equivalente al {{porcentaje}}%. Le recomendamos comunicarse con Infodata para su renovación.</textarea></label></div>${settingsActions()}`,
     automation: () => `<div class="settings-title"><h2>Automatizaciones</h2><p>Reglas que controlarán los envíos y el registro de actividad.</p></div><div class="switch-list"><div class="switch-row"><div><strong>Envío automático de minutas</strong><small>Enviar cuando un servicio sea marcado como concluido.</small></div><button class="switch is-on" aria-label="Envío automático" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Alerta al 10% de horas disponibles</strong><small>Notificar al cliente y a dirección una sola vez por póliza.</small></div><button class="switch is-on" aria-label="Alertas de póliza" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Permitir reenvíos autorizados</strong><small>Los administradores podrán reenviar minutas existentes.</small></div><button class="switch is-on" aria-label="Permitir reenvíos" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Registrar historial de envíos</strong><small>Guardar fecha, usuario, destinatarios y resultado.</small></div><button class="switch is-on" aria-label="Registrar historial" aria-pressed="true"></button></div></div>${settingsActions()}`,
     sae: () => `<div class="settings-title"><h2>Conexión con Aspel SAE</h2><p>Parámetros del servicio de integración de solo lectura.</p></div><div class="info-box">${icon('database')}<div><strong>Acceso protegido de solo lectura.</strong><br>La aplicación consultará servicios, clientes y pólizas; nunca modificará la base de datos de Aspel SAE.</div></div><div class="form-grid"><label class="form-field">Servidor o dirección IP<input value="192.168.1.100"></label><label class="form-field">Puerto<input value="3050"></label><label class="form-field full">Ruta de base Firebird<input value="C:\\Aspel\\SAE\\Datos\\SAEMPRE.FDB"></label><label class="form-field">Usuario de lectura<input value="SAE_READER"></label><label class="form-field">Contraseña<input type="password" value="demostracion"></label></div><div class="connection-status" id="saeStatus"><div><span class="status-dot"></span><div><strong>Modo demostración</strong><small>La prueba no realiza una conexión real.</small></div></div><button class="button secondary" data-setting-action="sae-test">Probar conexión</button></div>${settingsActions()}`,
-    users: () => `<div class="settings-title"><h2>Usuarios y permisos</h2><p>Administradores y consultores autorizados para usar el sistema.</p></div><button class="button primary" data-setting-action="show-user-form">${icon('user')}Agregar usuario</button><form class="form-grid is-hidden" id="newUserForm" style="margin-top:18px"><label class="form-field">Nombre<input name="name" required></label><label class="form-field">Correo<input name="email" type="email" required></label><label class="form-field">Rol<select name="role"><option>Consultor</option><option>Administrador</option></select></label><div class="form-field"><span>&nbsp;</span><button class="button secondary" type="submit">Guardar usuario</button></div></form><div class="table-wrap" style="margin-top:18px"><table class="user-list"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estatus</th><th>Acciones</th></tr></thead><tbody id="usersTable">${userRows()}</tbody></table></div><div class="info-box" style="margin-top:18px">${icon('user')}<div><strong>Administrador:</strong> acceso completo. <strong>Consultor:</strong> consulta minutas y correos; no accede a configuración.</div></div>`
+    users: () => `<div class="settings-title"><h2>Usuarios y permisos</h2><p>Cuentas reales autorizadas para usar la demostración.</p></div><button class="button primary" data-setting-action="show-user-form">${icon('user')}Agregar usuario</button><form class="form-grid is-hidden" id="newUserForm" style="margin-top:18px"><label class="form-field">Nombre<input name="name" required></label><label class="form-field">Correo<input name="email" type="email" required></label><label class="form-field">Rol<select name="role"><option value="consultant">Consultor</option><option value="administrator">Administrador</option><option value="auditor">Consulta / auditoría</option></select></label><label class="form-field">Contraseña temporal<input name="password" type="password" minlength="10" value="Temporal2026" required></label><div class="form-field"><span>&nbsp;</span><button class="button secondary" type="submit">Guardar usuario</button></div></form><div class="table-wrap" style="margin-top:18px"><table class="user-list"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estatus</th><th>Acciones</th></tr></thead><tbody id="usersTable">${userRows()}</tbody></table></div><div class="info-box" style="margin-top:18px">${icon('user')}<div><strong>Administrador:</strong> acceso completo. <strong>Consultor:</strong> consulta y genera minutas. <strong>Auditor:</strong> acceso de solo lectura a minutas y auditoría.</div></div>`,
+    audit: () => `<div class="settings-title"><h2>Auditoría de operaciones</h2><p>Últimos accesos y cambios sensibles registrados por el servidor.</p></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Elemento</th><th>Dirección IP</th></tr></thead><tbody id="auditTable">${auditRows()}</tbody></table></div><div class="info-box" style="margin-top:18px">${icon('database')}<div>La bitácora conserva accesos correctos o fallidos, cierres de sesión, consultas de detalle, creación de minutas y altas de usuarios.</div></div>`
 };
 
 function settingsActions() {
@@ -354,13 +374,43 @@ function settingsActions() {
 }
 
 function userRows() {
-    return users.map((user) => `<tr><td><strong>${user.name}</strong></td><td>${user.email}</td><td>${user.role}</td><td><span class="badge ${statusClass(user.status)}">${user.status}</span></td><td><button class="link-button" data-setting-action="edit-user">Editar</button></td></tr>`).join('');
+    return users.length
+        ? users.map((user) => `<tr><td><strong>${user.name}</strong></td><td>${user.email}</td><td>${user.roleLabel}</td><td><span class="badge ${statusClass(user.status)}">${user.status}</span></td><td><span class="muted">Controlado por rol</span></td></tr>`).join('')
+        : '<tr><td colspan="5" class="muted">Consultando usuarios autorizados...</td></tr>';
+}
+
+function auditRows() {
+    return auditLogs.length
+        ? auditLogs.map((log) => `<tr><td>${log.date}</td><td><strong>${log.user}</strong><br><small>${log.email}</small></td><td><code>${log.action}</code></td><td>${log.subject}</td><td>${log.ip}</td></tr>`).join('')
+        : '<tr><td colspan="5" class="muted">Consultando la bitácora...</td></tr>';
+}
+
+async function loadUsers() {
+    try {
+        const payload = await requestJson('/api/usuarios');
+        users = payload.data ?? [];
+        if (byId('usersTable')) byId('usersTable').innerHTML = userRows();
+    } catch (error) {
+        if (byId('usersTable')) byId('usersTable').innerHTML = `<tr><td colspan="5" class="muted">${error.message}</td></tr>`;
+    }
+}
+
+async function loadAuditLogs() {
+    try {
+        const payload = await requestJson('/api/auditoria');
+        auditLogs = payload.data ?? [];
+        if (byId('auditTable')) byId('auditTable').innerHTML = auditRows();
+    } catch (error) {
+        if (byId('auditTable')) byId('auditTable').innerHTML = `<tr><td colspan="5" class="muted">${error.message}</td></tr>`;
+    }
 }
 
 function renderSetting(name) {
     const renderer = settingsTemplates[name] ?? settingsTemplates.general;
     byId('settingsContent').innerHTML = renderer();
     document.querySelectorAll('#settingsNav button').forEach((button) => button.classList.toggle('is-active', button.dataset.setting === name));
+    if (name === 'users') loadUsers();
+    if (name === 'audit') loadAuditLogs();
 }
 
 function handleSettingAction(action, target) {
@@ -379,12 +429,28 @@ function handleSettingAction(action, target) {
 }
 
 function initializeEvents() {
-    byId('loginForm').addEventListener('submit', (event) => {
+    byId('loginForm').addEventListener('submit', async (event) => {
         event.preventDefault();
-        byId('loginScreen').classList.add('is-hidden');
-        byId('appShell').classList.remove('is-hidden');
-        navigate('dashboard');
-        showToast('Sesión de demostración iniciada.');
+        const form = event.currentTarget;
+        const submitButton = form.querySelector('button[type="submit"]');
+        const errorElement = byId('loginError');
+        errorElement.classList.add('is-hidden');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Verificando acceso...';
+
+        try {
+            await login(
+                byId('loginEmail').value.trim(),
+                byId('loginPassword').value,
+                form.querySelector('input[type="checkbox"]').checked,
+            );
+        } catch (error) {
+            errorElement.textContent = error.message;
+            errorElement.classList.remove('is-hidden');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Entrar a la demostración';
+        }
     });
 
     byId('togglePassword').addEventListener('click', () => {
@@ -392,10 +458,12 @@ function initializeEvents() {
         password.type = password.type === 'password' ? 'text' : 'password';
     });
 
-    byId('logoutButton').addEventListener('click', () => {
-        byId('appShell').classList.add('is-hidden');
-        byId('loginScreen').classList.remove('is-hidden');
-        showToast('Sesión cerrada correctamente.');
+    byId('logoutButton').addEventListener('click', async () => {
+        try {
+            await logout();
+        } catch (error) {
+            showToast(error.message);
+        }
     });
 
     document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.view)));
@@ -447,13 +515,27 @@ function initializeEvents() {
         showToast(`La minuta ${minute.id} se reenvió correctamente.`);
     });
 
-    byId('settingsContent').addEventListener('submit', (event) => {
+    byId('settingsContent').addEventListener('submit', async (event) => {
         if (event.target.id !== 'newUserForm') return;
         event.preventDefault();
         const data = new FormData(event.target);
-        users.push({ name: data.get('name'), email: data.get('email'), role: data.get('role'), status: 'Activo' });
-        renderSetting('users');
-        showToast('Usuario agregado al prototipo.');
+        try {
+            const payload = await requestJson('/api/usuarios', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: data.get('name'),
+                    email: data.get('email'),
+                    role: data.get('role'),
+                    password: data.get('password'),
+                }),
+            });
+            users.push(payload.data);
+            renderSetting('users');
+            showToast(payload.message);
+        } catch (error) {
+            showToast(error.message);
+        }
     });
 
     byId('newMinuteForm').addEventListener('submit', async (event) => {
@@ -518,3 +600,10 @@ renderMails();
 renderSetting('general');
 initializeEvents();
 byId('topbarDate').textContent = new Intl.DateTimeFormat('es-MX', { dateStyle: 'full' }).format(new Date());
+
+if (currentUser) {
+    showApplication(currentUser);
+    loadMinutesFromDatabase(false);
+} else {
+    showLogin();
+}
