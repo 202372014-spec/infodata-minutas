@@ -15,6 +15,11 @@ class AuthenticationAndAuthorizationTest extends TestCase
         $this->getJson('/api/minutas')->assertUnauthorized();
     }
 
+    public function test_a_guest_opening_a_protected_route_is_returned_to_login(): void
+    {
+        $this->get('/api/minutas')->assertRedirect('/');
+    }
+
     public function test_an_active_user_can_start_a_real_session(): void
     {
         $user = User::factory()->create([

@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Permite que Laravel reconozca el protocolo HTTPS cuando la
         // aplicación se publica detrás de Cloudflare u otro proxy inverso.
         $middleware->trustProxies(at: '*');
+        $middleware->redirectGuestsTo('/');
         $middleware->alias([
             'role' => EnsureUserRole::class,
         ]);
