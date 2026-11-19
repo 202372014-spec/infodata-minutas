@@ -3,13 +3,7 @@ import './bootstrap';
 let minutes = Array.isArray(window.__MINUTES__) ? window.__MINUTES__ : [];
 let currentUser = window.__CURRENT_USER__ ?? null;
 
-let mailItems = [
-    { id: 1, minute: 'INF-260307', client: 'Distribuidora Nova', date: '03/10/2026 12:01', type: 'Minuta terminada', to: 'raul.medina@nova.mx', cc: 'atencion@infodata.mx', status: 'Enviado', subject: 'Minuta de servicio INF-260307 – Distribuidora Nova', error: '' },
-    { id: 2, minute: 'INF-260304', client: 'Clínica San Gabriel', date: '02/10/2026 14:10', type: 'Minuta terminada', to: 'administracion@clinicasangabriel.mx', cc: 'atencion@infodata.mx', status: 'Error', subject: 'Minuta de servicio INF-260304 – Clínica San Gabriel', error: 'Error SMTP 550: el buzón del destinatario rechazó el mensaje.' },
-    { id: 3, minute: 'INF-260302', client: 'Transportes del Bajío', date: '02/10/2026 08:00', type: 'Alerta de póliza', to: 'sistemas@transportesbajio.mx', cc: 'direccion@infodata.mx', status: 'Pendiente', subject: 'Alerta: póliza POL-0988 con 10% disponible', error: '' },
-    { id: 4, minute: 'INF-260305', client: 'Ferretería Modelo', date: '02/10/2026 16:22', type: 'Minuta terminada', to: 'miguel@ferreteriamodelo.mx', cc: 'atencion@infodata.mx', status: 'Enviado', subject: 'Minuta de servicio INF-260305 – Ferretería Modelo', error: '' },
-    { id: 5, minute: 'INF-260301', client: 'Comercializadora del Centro', date: '01/10/2026 11:04', type: 'Minuta terminada', to: 'ana.ruiz@comercializadora.mx', cc: 'atencion@infodata.mx', status: 'Enviado', subject: 'Minuta de servicio INF-260301 – Comercializadora del Centro', error: '' }
-];
+let mailItems = [];
 
 let users = [];
 let auditLogs = [];
@@ -44,14 +38,25 @@ const automatedServices = {
 const icon = (name) => `<svg class="icon"><use href="#i-${name}"/></svg>`;
 const byId = (id) => document.getElementById(id);
 let csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-let selectedMailId = mailItems[0].id;
+let selectedMailId = null;
 let selectedMinuteId = null;
 let toastTimer;
+let activeServiceSession = null;
+let serviceTimerInterval = null;
 
 function statusClass(status) {
     if (['Enviada', 'Enviado', 'Vigente', 'Activo'].includes(status)) return 'sent';
-    if (['Pendiente', 'Por vencer'].includes(status)) return 'pending';
+    if (['Pendiente', 'Por vencer', 'Simulada', 'Simulado'].includes(status)) return 'pending';
     return 'error';
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
 }
 
 function showToast(message) {
@@ -141,7 +146,10 @@ async function login(email, password, remember) {
     });
 
     showApplication(payload.data);
-    await loadMinutesFromDatabase(false);
+    await Promise.all([
+        loadMinutesFromDatabase(false),
+        loadMailDeliveries(false),
+    ]);
     showToast(payload.message);
 }
 
@@ -170,15 +178,31 @@ async function loadMinutesFromDatabase(showMessage = true) {
 }
 
 async function saveMinuteToDatabase(minute) {
-    const payload = await requestJson('/api/minutas', {
+    return requestJson('/api/minutas', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(minute),
     });
+}
 
-    return payload.data;
+async function loadMailDeliveries(showMessage = false) {
+    try {
+        const payload = await requestJson('/api/correos');
+        mailItems = Array.isArray(payload.data) ? payload.data : [];
+        selectedMailId = mailItems.some((mail) => mail.id === selectedMailId)
+            ? selectedMailId
+            : (mailItems[0]?.id ?? null);
+        renderMails();
+        if (showMessage) showToast(`${mailItems.length} registros de correo consultados.`);
+    } catch (error) {
+        showToast(error.message || 'No fue posible consultar los correos.');
+    }
+}
+
+async function sendMinuteEmail(id) {
+    return requestJson(`/api/minutas/${encodeURIComponent(id)}/enviar`, { method: 'POST' });
 }
 
 function formatServiceDate(value) {
@@ -186,10 +210,133 @@ function formatServiceDate(value) {
     return `${day}/${month}/${year}`;
 }
 
-function serviceDuration(start, end) {
-    const [startHour, startMinute] = start.split(':').map(Number);
-    const [endHour, endMinute] = end.split(':').map(Number);
-    return ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60;
+function timerDisplay(seconds) {
+    const safeSeconds = Math.max(0, Number(seconds) || 0);
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutesPart = Math.floor((safeSeconds % 3600) / 60);
+    const secondsPart = Math.floor(safeSeconds % 60);
+    return [hours, minutesPart, secondsPart].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
+function humanTimerDisplay(seconds) {
+    const safeSeconds = Math.max(0, Number(seconds) || 0);
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutesPart = Math.floor((safeSeconds % 3600) / 60);
+    const secondsPart = Math.floor(safeSeconds % 60);
+    return `${hours} h ${String(minutesPart).padStart(2, '0')} min ${String(secondsPart).padStart(2, '0')} s`;
+}
+
+function localDateParts(value) {
+    const date = new Date(value);
+    const offsetDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+    return {
+        date: offsetDate.toISOString().slice(0, 10),
+        time: offsetDate.toISOString().slice(11, 16),
+    };
+}
+
+function currentElapsedSeconds(session) {
+    if (!session) return 0;
+    if (session.status === 'completed') return Number(session.elapsedSeconds) || 0;
+    if (!session.startedAt) return Number(session.elapsedSeconds) || 0;
+    return Math.max(0, Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000));
+}
+
+function stopTimerUpdates() {
+    clearInterval(serviceTimerInterval);
+    serviceTimerInterval = null;
+}
+
+function refreshTimerDisplay() {
+    const elapsed = currentElapsedSeconds(activeServiceSession);
+    byId('serviceTimerDisplay').textContent = timerDisplay(elapsed);
+
+    const form = byId('newMinuteForm');
+    if (form && activeServiceSession?.status === 'completed') {
+        form.elements.actualTime.value = humanTimerDisplay(elapsed);
+    }
+}
+
+function applyServiceSession(session) {
+    stopTimerUpdates();
+    activeServiceSession = session;
+
+    const form = byId('newMinuteForm');
+    const timer = byId('serviceTimer');
+    const startButton = byId('startServiceButton');
+    const stopButton = byId('stopServiceButton');
+    const generateButton = byId('generateMinuteButton');
+
+    form.elements.sessionId.value = session?.id ?? '';
+    timer.classList.toggle('is-running', session?.status === 'running');
+    timer.classList.toggle('is-completed', session?.status === 'completed');
+
+    if (!session) {
+        form.elements.date.value = '';
+        form.elements.start.value = '';
+        form.elements.end.value = '';
+        form.elements.actualTime.value = '';
+        form.elements.used.value = '';
+        form.elements.used.disabled = true;
+        startButton.classList.remove('is-hidden');
+        stopButton.classList.add('is-hidden');
+        generateButton.disabled = true;
+        byId('timerStatusTitle').textContent = 'Servicio sin iniciar';
+        byId('timerStatusText').textContent = 'Presiona “Iniciar servicio” cuando comience la atención.';
+        refreshTimerDisplay();
+        return;
+    }
+
+    const start = localDateParts(session.startedAt);
+    form.elements.date.value = start.date;
+    form.elements.start.value = start.time;
+
+    if (session.status === 'running') {
+        form.elements.end.value = '';
+        form.elements.actualTime.value = '';
+        form.elements.used.disabled = true;
+        startButton.classList.add('is-hidden');
+        stopButton.classList.remove('is-hidden');
+        generateButton.disabled = true;
+        byId('timerStatusTitle').textContent = 'Servicio en curso';
+        byId('timerStatusText').textContent = `Iniciado por ${session.startedBy ?? 'el asesor actual'}. El tiempo se guarda en el servidor.`;
+        refreshTimerDisplay();
+        serviceTimerInterval = setInterval(refreshTimerDisplay, 1000);
+        return;
+    }
+
+    const end = localDateParts(session.endedAt);
+    form.elements.end.value = end.time;
+    form.elements.actualTime.value = humanTimerDisplay(session.elapsedSeconds);
+    form.elements.used.disabled = false;
+    if (!form.elements.used.value) {
+        form.elements.used.value = Math.max(0.01, Number((session.elapsedSeconds / 3600).toFixed(2)));
+    }
+    startButton.classList.add('is-hidden');
+    stopButton.classList.add('is-hidden');
+    generateButton.disabled = false;
+    byId('timerStatusTitle').textContent = 'Servicio finalizado';
+    byId('timerStatusText').textContent = 'Indica el tiempo efectivo que se descontará de la póliza.';
+    refreshTimerDisplay();
+}
+
+async function loadServiceSession(serviceId) {
+    const payload = await requestJson(`/api/servicios/${encodeURIComponent(serviceId)}/sesion`);
+    applyServiceSession(payload.data);
+}
+
+async function startSelectedService() {
+    const serviceId = byId('newMinuteForm').elements.sourceService.value;
+    const payload = await requestJson(`/api/servicios/${encodeURIComponent(serviceId)}/iniciar`, { method: 'POST' });
+    applyServiceSession(payload.data);
+    showToast(payload.message);
+}
+
+async function stopSelectedService() {
+    const serviceId = byId('newMinuteForm').elements.sourceService.value;
+    const payload = await requestJson(`/api/servicios/${encodeURIComponent(serviceId)}/finalizar`, { method: 'POST' });
+    applyServiceSession(payload.data);
+    showToast(payload.message);
 }
 
 function populateAutomatedService(serviceId) {
@@ -198,19 +345,25 @@ function populateAutomatedService(serviceId) {
     if (!service || !form) return;
 
     Object.entries(service).forEach(([field, value]) => {
+        if (['date', 'start', 'end'].includes(field)) return;
         if (form.elements[field]) form.elements[field].value = value;
     });
 }
 
-function openNewMinute() {
+async function openNewMinute() {
     const form = byId('newMinuteForm');
     form.reset();
-    form.elements.end.setCustomValidity('');
+    applyServiceSession(null);
     byId('newMinuteId').value = nextMinuteId();
     populateAutomatedService(form.elements.sourceService.value);
     byId('newMinuteModal').classList.remove('is-hidden');
     document.body.style.overflow = 'hidden';
     setTimeout(() => form.elements.sourceService.focus(), 100);
+    try {
+        await loadServiceSession(form.elements.sourceService.value);
+    } catch (error) {
+        showToast(error.message);
+    }
 }
 
 function navigate(viewName) {
@@ -230,7 +383,7 @@ function renderDashboard() {
         <div class="chart-column"><strong>${value}</strong><div class="chart-bar" style="height:${value * 10}px"></div><span>${days[index]}</span></div>
     `).join('');
 
-    const sent = minutes.filter((minute) => minute.sendStatus === 'Enviada').length;
+    const sent = minutes.filter((minute) => ['Enviada', 'Simulada'].includes(minute.sendStatus)).length;
     const pending = minutes.filter((minute) => minute.sendStatus === 'Pendiente').length;
     const errors = minutes.filter((minute) => minute.sendStatus === 'Error').length;
     const critical = minutes.filter((minute) => minute.contracted > 0 && (minute.available / minute.contracted) <= .1);
@@ -299,8 +452,8 @@ function openMinute(id) {
         <article class="minute-document">
             <header class="doc-head"><div class="doc-brand"><span class="brand-mark">i.</span><div><strong>Infodata</strong><small>Soluciones de tecnología empresarial</small></div></div><div class="doc-title"><span>Documento de servicio</span><h3>Minuta de servicio</h3><strong>${minute.id}</strong></div></header>
             <div class="doc-body">
-                <div class="doc-meta"><div><span>Fecha</span><strong>${minute.date}</strong></div><div><span>Hora inicio</span><strong>${minute.start}</strong></div><div><span>Hora fin</span><strong>${minute.end}</strong></div><div><span>Tiempo</span><strong>${minute.used} h</strong></div><div><span>Estatus</span><strong>${minute.serviceStatus}</strong></div></div>
-                <section class="doc-section"><h4>Datos del cliente</h4><div class="doc-data-grid"><div><span>Cliente</span><strong>${minute.client}</strong></div><div><span>Póliza</span><strong>${minute.policy}</strong></div><div><span>Vigencia</span><strong>${minute.validity}</strong></div><div><span>Horas contratadas</span><strong>${minute.contracted} h</strong></div><div><span>Horas disponibles</span><strong>${minute.available} h</strong></div><div><span>Consultor</span><strong>${minute.adviser}</strong></div>${minute.sourceService ? `<div><span>Servicio origen</span><strong>${minute.sourceService}</strong></div>` : ''}</div></section>
+                <div class="doc-meta"><div><span>Fecha</span><strong>${minute.date}</strong></div><div><span>Hora inicio</span><strong>${minute.start}</strong></div><div><span>Hora fin</span><strong>${minute.end}</strong></div><div><span>Tiempo real</span><strong>${minute.actualDuration}</strong></div><div><span>Descuento de póliza</span><strong>${minute.discountedHours} h</strong></div><div><span>Estatus</span><strong>${minute.serviceStatus}</strong></div></div>
+                <section class="doc-section"><h4>Datos del cliente</h4><div class="doc-data-grid"><div><span>Cliente</span><strong>${minute.client}</strong></div><div><span>Póliza</span><strong>${minute.policy}</strong></div><div><span>Vigencia</span><strong>${minute.validity}</strong></div><div><span>Horas contratadas</span><strong>${minute.contracted} h</strong></div><div><span>Disponibles antes</span><strong>${minute.availableBefore} h</strong></div><div><span>Tiempo restante</span><strong>${minute.available} h (${minute.remainingPercentage}%)</strong></div><div><span>Consultor</span><strong>${minute.adviser}</strong></div>${minute.sourceService ? `<div><span>Servicio origen</span><strong>${minute.sourceService}</strong></div>` : ''}</div></section>
                 <section class="doc-section"><h4>Participantes</h4><div class="doc-data-grid"><div><span>Quién reporta</span><strong>${minute.reporter}</strong></div><div><span>Quién recibe</span><strong>${minute.recipient}</strong></div><div><span>Correo</span><strong>${minute.email}</strong></div></div></section>
                 <section class="doc-section"><h4>Falla reportada</h4><div class="doc-block red">${minute.issue}</div></section>
                 <section class="doc-section"><h4>Servicio realizado</h4><div class="doc-block">${minute.work}</div></section>
@@ -325,45 +478,54 @@ function openResend(id) {
 function closeModal(id) {
     byId(id).classList.add('is-hidden');
     document.body.style.overflow = '';
+    if (id === 'newMinuteModal') stopTimerUpdates();
 }
 
 function renderMails() {
     const query = byId('mailSearch').value.trim().toLowerCase();
     const status = byId('mailStatusFilter').value;
     const filtered = mailItems.filter((mail) => {
-        const matchesQuery = [mail.minute, mail.client, mail.to].some((value) => value.toLowerCase().includes(query));
+        const matchesQuery = [mail.minute, mail.client, mail.to].some((value) => String(value ?? '').toLowerCase().includes(query));
         return matchesQuery && (status === 'all' || mail.status === status);
     });
     byId('mailTable').innerHTML = filtered.length ? filtered.map((mail) => `
         <tr class="mail-row ${mail.id === selectedMailId ? 'is-selected' : ''}" data-mail="${mail.id}"><td>${mail.date}</td><td><div class="client-cell"><strong>${mail.minute}</strong><small>${mail.client}</small></div></td><td>${mail.type}</td><td><span class="badge ${statusClass(mail.status)}">${mail.status}</span></td><td>${icon('eye')}</td></tr>
     `).join('') : '<tr><td colspan="5" class="muted">No se encontraron correos.</td></tr>';
-    const selected = mailItems.find((mail) => mail.id === selectedMailId) ?? filtered[0] ?? mailItems[0];
-    if (selected) renderMailPreview(selected);
+    const selected = filtered.find((mail) => mail.id === selectedMailId) ?? filtered[0] ?? null;
+    if (selected) {
+        selectedMailId = selected.id;
+        renderMailPreview(selected);
+    } else {
+        byId('mailPreview').innerHTML = '<div class="empty-state"><strong>Sin correos registrados</strong><span>Los envíos de minutas y las alertas de póliza aparecerán aquí.</span></div>';
+    }
 }
 
 function renderMailPreview(mail) {
-    const minute = minutes.find((item) => item.id === mail.minute);
+    const canSend = currentUser?.permissions.createMinutes && minutes.some((item) => item.id === mail.minute);
+    const attachment = mail.hasAttachment
+        ? `<div class="attachment">${icon('file')}<div><strong>${mail.minute}.pdf</strong><small>Minuta de servicio · PDF adjunto</small></div></div>`
+        : '';
+    const downloadButton = mail.downloadUrl
+        ? `<a class="button secondary" href="${mail.downloadUrl}">${icon('download')}Descargar PDF</a>`
+        : '';
+    const resendButton = canSend
+        ? `<button class="button primary" data-resend="${mail.minute}">${icon('send')}Reenviar</button>`
+        : '';
+
     byId('mailPreview').innerHTML = `
-        <header class="mail-preview-head"><span>Vista previa del correo</span><h2>${mail.subject}</h2></header>
-        <dl class="mail-meta"><dt>Destinatario</dt><dd>${mail.to}</dd><dt>Copias</dt><dd>${mail.cc}</dd><dt>Fecha</dt><dd>${mail.date}</dd><dt>Tipo</dt><dd>${mail.type}</dd><dt>Estatus</dt><dd><span class="badge ${statusClass(mail.status)}">${mail.status}</span></dd></dl>
-        ${mail.error ? `<div class="mail-error"><strong>⚠ Error de envío</strong><br>${mail.error}</div>` : ''}
-        <div class="mail-body">Estimado/a ${minute?.recipient ?? 'cliente'}:
-
-Adjuntamos la minuta correspondiente al servicio ${mail.minute}. El documento incluye el detalle de la atención y las actividades pendientes.
-
-Quedamos a sus órdenes para cualquier consulta.
-
-Atentamente,
-Equipo de Atención Infodata</div>
-        <div class="attachment">${icon('file')}<div><strong>${mail.minute}.pdf</strong><small>Minuta de servicio · PDF</small></div></div>
-        <div class="mail-actions"><button class="button secondary" data-action="download">${icon('download')}Descargar</button><button class="button primary" data-resend="${mail.minute}">${icon('send')}Reenviar</button></div>`;
+        <header class="mail-preview-head"><span>Vista previa del correo</span><h2>${escapeHtml(mail.subject)}</h2></header>
+        <dl class="mail-meta"><dt>Destinatario</dt><dd>${escapeHtml(mail.to)}</dd><dt>Copias</dt><dd>${escapeHtml(mail.cc || '—')}</dd><dt>Fecha</dt><dd>${escapeHtml(mail.date)}</dd><dt>Tipo</dt><dd>${escapeHtml(mail.type)}</dd><dt>Estatus</dt><dd><span class="badge ${statusClass(mail.status)}">${escapeHtml(mail.status)}</span></dd></dl>
+        ${mail.error ? `<div class="mail-error"><strong>⚠ Error de envío</strong><br>${escapeHtml(mail.error)}</div>` : ''}
+        <div class="mail-body">${escapeHtml(mail.body)}</div>
+        ${attachment}
+        <div class="mail-actions">${downloadButton}${resendButton}</div>`;
 }
 
 const settingsTemplates = {
     general: () => `<div class="settings-title"><h2>Datos generales</h2><p>Identidad que se mostrará en el sistema y en las minutas.</p></div><div class="form-grid"><label class="form-field">Nombre de la empresa<input value="Infodata"></label><label class="form-field">Nombre del sistema<input value="Sistema de Minutas Infodata"></label><label class="form-field full">Firma utilizada en correos<textarea>Atentamente,\nEquipo de Atención Infodata\nwww.infodata.mx</textarea><small>Se agregará al final de los correos enviados.</small></label></div>${settingsActions()}`,
-    mail: () => `<div class="settings-title"><h2>Correos y destinatarios</h2><p>Cuenta remitente y direcciones para copias automáticas.</p></div><div class="form-grid"><label class="form-field">Cuenta de envío<input value="minutas@infodata.mx"></label><label class="form-field">Nombre del remitente<input value="Sistema de Minutas Infodata"></label><label class="form-field">Atención a clientes<input value="atencion@infodata.mx"></label><label class="form-field">Dirección<input value="direccion@infodata.mx"></label><label class="form-field full">Copias adicionales<input placeholder="correo1@ejemplo.mx, correo2@ejemplo.mx"><small>Separa las direcciones con una coma.</small></label></div><div class="connection-status"><div><span class="status-dot"></span><div><strong>Configuración de demostración</strong><small>La conexión SMTP se realizará en la fase de integración.</small></div></div><button class="button secondary" data-setting-action="mail-test">Enviar prueba</button></div>${settingsActions()}`,
+    mail: () => `<div class="settings-title"><h2>Correos y destinatarios</h2><p>Cuenta remitente y direcciones para copias automáticas.</p></div><div class="form-grid"><label class="form-field">Cuenta de envío<input value="minutas@infodata.mx"></label><label class="form-field">Nombre del remitente<input value="Sistema de Minutas Infodata"></label><label class="form-field">Atención a clientes<input value="atencion@infodata.mx"></label><label class="form-field">Alertas de póliza<input value="asesor1@grupoinfodata.com, mcazares@grupoinfodata.com"></label></div><div class="connection-status"><div><span class="status-dot"></span><div><strong>Generación de correo y PDF activa</strong><small>El envío externo utilizará SMTP cuando se configuren sus credenciales; mientras tanto queda registrado en modo demostración.</small></div></div><button class="button secondary" data-setting-action="mail-test">Enviar prueba</button></div>${settingsActions()}`,
     templates: () => `<div class="settings-title"><h2>Plantillas de correo</h2><p>Mensajes utilizados para minutas concluidas y alertas de póliza.</p></div><div class="form-grid"><label class="form-field full">Asunto de minuta<input value="Minuta de servicio {{folio}} – {{cliente}}"></label><label class="form-field full">Mensaje de minuta<textarea>Estimado/a {{contacto}}:\n\nAdjuntamos la minuta del servicio realizado el {{fecha_servicio}}.\n\nQuedamos a sus órdenes.</textarea></label><label class="form-field full">Asunto de alerta<input value="Alerta: póliza {{poliza}} con {{porcentaje}}% disponible"></label><label class="form-field full">Mensaje de alerta<textarea>Estimado/a {{contacto}}:\n\nLa póliza {{poliza}} dispone de {{horas_disponibles}} horas, equivalente al {{porcentaje}}%. Le recomendamos comunicarse con Infodata para su renovación.</textarea></label></div>${settingsActions()}`,
-    automation: () => `<div class="settings-title"><h2>Automatizaciones</h2><p>Reglas que controlarán los envíos y el registro de actividad.</p></div><div class="switch-list"><div class="switch-row"><div><strong>Envío automático de minutas</strong><small>Enviar cuando un servicio sea marcado como concluido.</small></div><button class="switch is-on" aria-label="Envío automático" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Alerta al 10% de horas disponibles</strong><small>Notificar al cliente y a dirección una sola vez por póliza.</small></div><button class="switch is-on" aria-label="Alertas de póliza" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Permitir reenvíos autorizados</strong><small>Los administradores podrán reenviar minutas existentes.</small></div><button class="switch is-on" aria-label="Permitir reenvíos" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Registrar historial de envíos</strong><small>Guardar fecha, usuario, destinatarios y resultado.</small></div><button class="switch is-on" aria-label="Registrar historial" aria-pressed="true"></button></div></div>${settingsActions()}`,
+    automation: () => `<div class="settings-title"><h2>Automatizaciones</h2><p>Reglas que controlan los envíos y el registro de actividad.</p></div><div class="switch-list"><div class="switch-row"><div><strong>Envío automático de minutas</strong><small>Preparar correo y PDF cuando se genera una minuta.</small></div><button class="switch is-on" aria-label="Envío automático" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Alerta al 10% de horas disponibles</strong><small>Notificar a asesor1@grupoinfodata.com y mcazares@grupoinfodata.com una sola vez por póliza.</small></div><button class="switch is-on" aria-label="Alertas de póliza" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Permitir reenvíos autorizados</strong><small>Los administradores y consultores pueden reenviar minutas existentes.</small></div><button class="switch is-on" aria-label="Permitir reenvíos" aria-pressed="true"></button></div><div class="switch-row"><div><strong>Registrar historial de envíos</strong><small>Guardar destinatarios, contenido, archivo adjunto, fecha y resultado.</small></div><button class="switch is-on" aria-label="Registrar historial" aria-pressed="true"></button></div></div>${settingsActions()}`,
     sae: () => `<div class="settings-title"><h2>Conexión con Aspel SAE</h2><p>Parámetros del servicio de integración de solo lectura.</p></div><div class="info-box">${icon('database')}<div><strong>Acceso protegido de solo lectura.</strong><br>La aplicación consultará servicios, clientes y pólizas; nunca modificará la base de datos de Aspel SAE.</div></div><div class="form-grid"><label class="form-field">Servidor o dirección IP<input value="192.168.1.100"></label><label class="form-field">Puerto<input value="3050"></label><label class="form-field full">Ruta de base Firebird<input value="C:\\Aspel\\SAE\\Datos\\SAEMPRE.FDB"></label><label class="form-field">Usuario de lectura<input value="SAE_READER"></label><label class="form-field">Contraseña<input type="password" value="demostracion"></label></div><div class="connection-status" id="saeStatus"><div><span class="status-dot"></span><div><strong>Modo demostración</strong><small>La prueba no realiza una conexión real.</small></div></div><button class="button secondary" data-setting-action="sae-test">Probar conexión</button></div>${settingsActions()}`,
     users: () => `<div class="settings-title"><h2>Usuarios y permisos</h2><p>Cuentas reales autorizadas para usar la demostración.</p></div><button class="button primary" data-setting-action="show-user-form">${icon('user')}Agregar usuario</button><form class="form-grid is-hidden" id="newUserForm" style="margin-top:18px"><label class="form-field">Nombre<input name="name" required></label><label class="form-field">Correo<input name="email" type="email" required></label><label class="form-field">Rol<select name="role"><option value="consultant">Consultor</option><option value="administrator">Administrador</option><option value="auditor">Consulta / auditoría</option></select></label><label class="form-field">Contraseña temporal<input name="password" type="password" minlength="10" value="Temporal2026" required></label><div class="form-field"><span>&nbsp;</span><button class="button secondary" type="submit">Guardar usuario</button></div></form><div class="table-wrap" style="margin-top:18px"><table class="user-list"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estatus</th><th>Acciones</th></tr></thead><tbody id="usersTable">${userRows()}</tbody></table></div><div class="info-box" style="margin-top:18px">${icon('user')}<div><strong>Administrador:</strong> acceso completo. <strong>Consultor:</strong> consulta y genera minutas. <strong>Auditor:</strong> acceso de solo lectura a minutas y auditoría.</div></div>`,
     audit: () => `<div class="settings-title"><h2>Auditoría de operaciones</h2><p>Últimos accesos y cambios sensibles registrados por el servidor.</p></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Elemento</th><th>Dirección IP</th></tr></thead><tbody id="auditTable">${auditRows()}</tbody></table></div><div class="info-box" style="margin-top:18px">${icon('database')}<div>La bitácora conserva accesos correctos o fallidos, cierres de sesión, consultas de detalle, creación de minutas y altas de usuarios.</div></div>`
@@ -473,9 +635,29 @@ function initializeEvents() {
 
     ['minuteSearch', 'statusFilter', 'policyFilter'].forEach((id) => byId(id).addEventListener(id === 'minuteSearch' ? 'input' : 'change', filterMinutes));
     ['mailSearch', 'mailStatusFilter'].forEach((id) => byId(id).addEventListener(id === 'mailSearch' ? 'input' : 'change', renderMails));
-    byId('saeServiceSelect').addEventListener('change', (event) => {
+    byId('saeServiceSelect').addEventListener('change', async (event) => {
         populateAutomatedService(event.target.value);
-        showToast(`Datos del servicio ${event.target.value} cargados automáticamente.`);
+        applyServiceSession(null);
+        try {
+            await loadServiceSession(event.target.value);
+            showToast(`Datos y cronómetro de ${event.target.value} actualizados.`);
+        } catch (error) {
+            showToast(error.message);
+        }
+    });
+    byId('startServiceButton').addEventListener('click', async () => {
+        try {
+            await startSelectedService();
+        } catch (error) {
+            showToast(error.message);
+        }
+    });
+    byId('stopServiceButton').addEventListener('click', async () => {
+        try {
+            await stopSelectedService();
+        } catch (error) {
+            showToast(error.message);
+        }
     });
 
     document.addEventListener('click', async (event) => {
@@ -494,25 +676,32 @@ function initializeEvents() {
         if (resendButton) openResend(resendButton.dataset.resend);
         if (closeButton) closeModal(closeButton.dataset.close);
         if (refreshButton) await loadMinutesFromDatabase();
-        if (newMinuteButton) openNewMinute();
-        if (downloadButton) { showToast('Vista de impresión preparada.'); setTimeout(() => window.print(), 250); }
+        if (newMinuteButton) await openNewMinute();
+        if (downloadButton && selectedMinuteId) {
+            window.location.href = `/api/minutas/${encodeURIComponent(selectedMinuteId)}/pdf`;
+        }
         if (mailRow) { selectedMailId = Number(mailRow.dataset.mail); renderMails(); }
         if (settingTab) renderSetting(settingTab.dataset.setting);
         if (settingAction) handleSettingAction(settingAction.dataset.settingAction, settingAction);
         if (switchButton) { switchButton.classList.toggle('is-on'); switchButton.setAttribute('aria-pressed', String(switchButton.classList.contains('is-on'))); }
     });
 
-    byId('confirmResend').addEventListener('click', () => {
+    byId('confirmResend').addEventListener('click', async () => {
         const minute = minutes.find((item) => item.id === selectedMinuteId);
         if (!minute) return;
-        minute.sendStatus = 'Enviada';
-        minute.sentAt = '03/10/2026 16:30';
-        mailItems = [{ id: Date.now(), minute: minute.id, client: minute.client, date: minute.sentAt, type: 'Reenvío de minuta', to: minute.email, cc: 'atencion@infodata.mx', status: 'Enviado', subject: `Reenvío – Minuta de servicio ${minute.id}`, error: '' }, ...mailItems];
-        selectedMailId = mailItems[0].id;
-        closeModal('resendModal');
-        filterMinutes();
-        renderMails();
-        showToast(`La minuta ${minute.id} se reenvió correctamente.`);
+        const button = byId('confirmResend');
+        button.disabled = true;
+        try {
+            const payload = await sendMinuteEmail(minute.id);
+            closeModal('resendModal');
+            await Promise.all([loadMinutesFromDatabase(false), loadMailDeliveries(false)]);
+            navigate('correos');
+            showToast(payload.message);
+        } catch (error) {
+            showToast(error.message);
+        } finally {
+            button.disabled = false;
+        }
     });
 
     byId('settingsContent').addEventListener('submit', async (event) => {
@@ -542,25 +731,34 @@ function initializeEvents() {
         event.preventDefault();
         const form = event.currentTarget;
         const data = new FormData(form);
-        const duration = serviceDuration(data.get('start'), data.get('end'));
+        const discountedHours = Number(data.get('used'));
 
-        if (duration <= 0) {
-            form.elements.end.setCustomValidity('La hora de término debe ser posterior a la hora de inicio.');
-            form.elements.end.reportValidity();
+        if (!activeServiceSession || activeServiceSession.status !== 'completed') {
+            showToast('Primero debes finalizar el servicio.');
             return;
         }
 
-        form.elements.end.setCustomValidity('');
+        if (!Number.isFinite(discountedHours) || discountedHours <= 0) {
+            form.elements.used.setCustomValidity('Indica un tiempo mayor que cero para descontar de la póliza.');
+            form.elements.used.reportValidity();
+            return;
+        }
+
+        if (discountedHours > Number(data.get('available'))) {
+            form.elements.used.setCustomValidity('El descuento no puede superar las horas disponibles.');
+            form.elements.used.reportValidity();
+            return;
+        }
+
+        form.elements.used.setCustomValidity('');
         const minuteToSave = {
             id: data.get('id'),
+            sessionId: Number(data.get('sessionId')),
             client: data.get('client').trim(),
-            date: data.get('date'),
-            start: data.get('start'),
-            end: data.get('end'),
-            used: Number(duration.toFixed(2)),
+            used: Number(discountedHours.toFixed(2)),
             policy: data.get('policy').trim().toUpperCase(),
             contracted: Number(data.get('contracted')),
-            available: Number(data.get('available')),
+            availableBefore: Number(data.get('available')),
             validity: data.get('validity'),
             adviser: data.get('adviser'),
             reporter: data.get('reporter').trim(),
@@ -573,8 +771,12 @@ function initializeEvents() {
             sourceService: data.get('sourceService'),
         };
 
+        const submitButton = byId('generateMinuteButton');
+        submitButton.disabled = true;
+
         try {
-            const savedMinute = await saveMinuteToDatabase(minuteToSave);
+            const creationPayload = await saveMinuteToDatabase(minuteToSave);
+            const savedMinute = creationPayload.data;
             minutes.push(savedMinute);
             byId('minuteSearch').value = '';
             byId('statusFilter').value = 'all';
@@ -584,9 +786,21 @@ function initializeEvents() {
             filterMinutes();
             navigate('minutas');
             openMinute(savedMinute.id);
-            showToast(`La minuta ${savedMinute.id} se guardó en SQLite.`);
+
+            try {
+                const mailPayload = await sendMinuteEmail(savedMinute.id);
+                await Promise.all([loadMinutesFromDatabase(false), loadMailDeliveries(false)]);
+                const alertText = creationPayload.alert
+                    ? ` También se generó la alerta de póliza al ${creationPayload.alert.percentage}%.`
+                    : '';
+                showToast(`${mailPayload.message}${alertText}`);
+            } catch (mailError) {
+                await loadMinutesFromDatabase(false);
+                showToast(`La minuta ${savedMinute.id} se guardó, pero el correo presentó un error: ${mailError.message}`);
+            }
         } catch (error) {
             showToast(error.message || 'No fue posible guardar la minuta.');
+            submitButton.disabled = false;
         }
     });
 
@@ -603,7 +817,10 @@ byId('topbarDate').textContent = new Intl.DateTimeFormat('es-MX', { dateStyle: '
 
 if (currentUser) {
     showApplication(currentUser);
-    loadMinutesFromDatabase(false);
+    Promise.all([
+        loadMinutesFromDatabase(false),
+        loadMailDeliveries(false),
+    ]);
 } else {
     showLogin();
 }

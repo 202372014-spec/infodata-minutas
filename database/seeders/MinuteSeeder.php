@@ -128,6 +128,14 @@ class MinuteSeeder extends Seeder
         ];
 
         foreach ($minutes as $minute) {
+            $start = strtotime("{$minute['service_date']} {$minute['start_time']}");
+            $end = strtotime("{$minute['service_date']} {$minute['end_time']}");
+            $minute['elapsed_seconds'] = max(0, $end - $start);
+            $minute['available_before_hours'] = round(
+                $minute['available_hours'] + $minute['hours_used'],
+                2,
+            );
+
             Minute::updateOrCreate(['folio' => $minute['folio']], $minute);
         }
     }

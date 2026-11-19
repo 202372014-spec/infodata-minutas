@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Minute;
+use App\Models\ServiceSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -42,17 +43,24 @@ class MinuteDatabaseTest extends TestCase
 
     public function test_a_generated_minute_is_saved_in_sqlite(): void
     {
+        $session = ServiceSession::create([
+            'source_service' => 'SAE-SRV-9999',
+            'user_id' => auth()->id(),
+            'started_at' => now()->subMinutes(90),
+            'ended_at' => now(),
+            'elapsed_seconds' => 5400,
+            'status' => 'completed',
+        ]);
+
         $payload = [
             'id' => 'INF-269999',
+            'sessionId' => $session->id,
             'sourceService' => 'SAE-SRV-9999',
             'client' => 'Cliente de prueba',
-            'date' => '2026-11-01',
-            'start' => '09:00',
-            'end' => '10:30',
             'used' => 1.5,
             'policy' => 'POL-TEST',
             'contracted' => 20,
-            'available' => 18.5,
+            'availableBefore' => 20,
             'validity' => 'Vigente',
             'adviser' => 'Jonatan Salazar',
             'reporter' => 'Usuario de prueba',
@@ -71,6 +79,10 @@ class MinuteDatabaseTest extends TestCase
         $this->assertDatabaseHas('minutes', [
             'folio' => 'INF-269999',
             'source_service' => 'SAE-SRV-9999',
+            'elapsed_seconds' => 5400,
+            'hours_used' => 1.5,
+            'available_before_hours' => 20,
+            'available_hours' => 18.5,
         ]);
 
         $this->assertDatabaseHas('audit_logs', [
@@ -88,9 +100,11 @@ class MinuteDatabaseTest extends TestCase
             'service_date' => '2026-11-01',
             'start_time' => '09:00',
             'end_time' => '10:00',
+            'elapsed_seconds' => 3600,
             'hours_used' => 1,
             'policy_number' => 'POL-TEST',
             'contracted_hours' => 10,
+            'available_before_hours' => 10,
             'available_hours' => 9,
             'validity' => 'Vigente',
             'adviser' => 'Jonatan Salazar',

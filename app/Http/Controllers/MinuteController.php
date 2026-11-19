@@ -3,10 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Minute;
+use App\Models\ServiceSession;
 use App\Services\AuditLogger;
+use App\Services\PolicyAlertService;
+use App\Support\ServiceDuration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class MinuteController extends Controller
@@ -43,19 +48,20 @@ class MinuteController extends Controller
         return response()->json(['data' => $this->toFrontend($minute)]);
     }
 
-    public function store(Request $request, AuditLogger $audit): JsonResponse
-    {
+    public function store(
+        Request $request,
+        AuditLogger $audit,
+        PolicyAlertService $alertService,
+    ): JsonResponse {
         $validated = $request->validate([
             'id' => ['required', 'string', 'max:30', 'unique:minutes,folio'],
-            'sourceService' => ['nullable', 'string', 'max:60', 'unique:minutes,source_service'],
+            'sessionId' => ['required', 'integer', 'exists:service_sessions,id'],
+            'sourceService' => ['required', 'string', 'max:60', 'unique:minutes,source_service'],
             'client' => ['required', 'string', 'max:180'],
-            'date' => ['required', 'date'],
-            'start' => ['required', 'date_format:H:i'],
-            'end' => ['required', 'date_format:H:i', 'after:start'],
             'used' => ['required', 'numeric', 'gt:0'],
             'policy' => ['required', 'string', 'max:60'],
-            'contracted' => ['required', 'numeric', 'gte:0'],
-            'available' => ['required', 'numeric', 'gte:0'],
+            'contracted' => ['required', 'numeric', 'gt:0'],
+            'availableBefore' => ['required', 'numeric', 'gte:0'],
             'validity' => ['required', 'string', 'max:30'],
             'adviser' => ['required', 'string', 'max:150'],
             'reporter' => ['required', 'string', 'max:150'],
@@ -67,37 +73,80 @@ class MinuteController extends Controller
             'pending' => ['nullable', 'string'],
         ]);
 
-        $minute = Minute::create([
-            'folio' => $validated['id'],
-            'source_service' => $validated['sourceService'] ?? null,
-            'client_name' => $validated['client'],
-            'service_date' => $validated['date'],
-            'start_time' => $validated['start'],
-            'end_time' => $validated['end'],
-            'hours_used' => $validated['used'],
-            'policy_number' => $validated['policy'],
-            'contracted_hours' => $validated['contracted'],
-            'available_hours' => $validated['available'],
-            'validity' => $validated['validity'],
-            'adviser' => $validated['adviser'],
-            'reporter' => $validated['reporter'],
-            'recipient' => $validated['recipient'],
-            'recipient_email' => $validated['email'],
-            'service_status' => $validated['serviceStatus'],
-            'send_status' => 'Pendiente',
-            'issue' => $validated['issue'],
-            'work_performed' => $validated['work'],
-            'pending_activity' => $validated['pending'] ?? 'Sin actividades pendientes.',
-        ]);
+        $session = ServiceSession::query()->findOrFail($validated['sessionId']);
+
+        if ($session->source_service !== $validated['sourceService']) {
+            throw ValidationException::withMessages([
+                'sourceService' => ['El cronómetro no corresponde al servicio seleccionado.'],
+            ]);
+        }
+
+        if ($session->status !== 'completed' || ! $session->ended_at) {
+            throw ValidationException::withMessages([
+                'sessionId' => ['Primero debes finalizar el servicio para generar la minuta.'],
+            ]);
+        }
+
+        $discountedHours = round((float) $validated['used'], 2);
+        $availableBefore = round((float) $validated['availableBefore'], 2);
+
+        if ($discountedHours > $availableBefore) {
+            throw ValidationException::withMessages([
+                'used' => ['El tiempo a descontar no puede superar las horas disponibles de la póliza.'],
+            ]);
+        }
+
+        $minute = DB::transaction(function () use (
+            $validated,
+            $session,
+            $discountedHours,
+            $availableBefore,
+        ): Minute {
+            return Minute::create([
+                'folio' => $validated['id'],
+                'source_service' => $validated['sourceService'],
+                'client_name' => $validated['client'],
+                'service_date' => $session->started_at->toDateString(),
+                'start_time' => $session->started_at->format('H:i:s'),
+                'end_time' => $session->ended_at->format('H:i:s'),
+                'elapsed_seconds' => $session->elapsed_seconds,
+                'hours_used' => $discountedHours,
+                'policy_number' => mb_strtoupper($validated['policy']),
+                'contracted_hours' => $validated['contracted'],
+                'available_before_hours' => $availableBefore,
+                'available_hours' => round($availableBefore - $discountedHours, 2),
+                'validity' => $validated['validity'],
+                'adviser' => $validated['adviser'],
+                'reporter' => $validated['reporter'],
+                'recipient' => $validated['recipient'],
+                'recipient_email' => mb_strtolower($validated['email']),
+                'service_status' => $validated['serviceStatus'],
+                'send_status' => 'Pendiente',
+                'issue' => $validated['issue'],
+                'work_performed' => $validated['work'],
+                'pending_activity' => $validated['pending'] ?? 'Sin actividades pendientes.',
+            ]);
+        });
+
+        $alert = $alertService->sendIfRequired($minute);
 
         $audit->record($request, 'minute.created', 'minute', $minute->folio, [
             'sourceService' => $minute->source_service,
             'client' => $minute->client_name,
+            'elapsedSeconds' => $minute->elapsed_seconds,
+            'discountedHours' => (float) $minute->hours_used,
+            'remainingHours' => (float) $minute->available_hours,
+            'policyAlertStatus' => $alert?->status,
         ]);
 
         return response()->json([
-            'message' => "La minuta {$minute->folio} se guardó en la base de demostración.",
+            'message' => "La minuta {$minute->folio} se guardó con el tiempo real y el descuento de póliza separados.",
             'data' => $this->toFrontend($minute),
+            'alert' => $alert ? [
+                'policy' => $alert->policy_number,
+                'percentage' => (float) $alert->remaining_percentage,
+                'status' => $alert->status,
+            ] : null,
         ], 201);
     }
 
@@ -116,6 +165,9 @@ class MinuteController extends Controller
 
     private function toFrontend(Minute $minute): array
     {
+        $contracted = (float) $minute->contracted_hours;
+        $remaining = (float) $minute->available_hours;
+
         return [
             'id' => $minute->folio,
             'sourceService' => $minute->source_service,
@@ -123,10 +175,17 @@ class MinuteController extends Controller
             'date' => $minute->service_date->format('d/m/Y'),
             'start' => substr($minute->start_time, 0, 5),
             'end' => substr($minute->end_time, 0, 5),
+            'actualSeconds' => (int) $minute->elapsed_seconds,
+            'actualDuration' => ServiceDuration::human((int) $minute->elapsed_seconds),
             'used' => (float) $minute->hours_used,
+            'discountedHours' => (float) $minute->hours_used,
             'policy' => $minute->policy_number,
-            'contracted' => (float) $minute->contracted_hours,
-            'available' => (float) $minute->available_hours,
+            'contracted' => $contracted,
+            'availableBefore' => (float) ($minute->available_before_hours ?? $remaining),
+            'available' => $remaining,
+            'remainingPercentage' => $contracted > 0
+                ? round(($remaining / $contracted) * 100, 2)
+                : 0,
             'validity' => $minute->validity,
             'adviser' => $minute->adviser,
             'reporter' => $minute->reporter,
@@ -138,6 +197,7 @@ class MinuteController extends Controller
             'issue' => $minute->issue,
             'work' => $minute->work_performed,
             'pending' => $minute->pending_activity ?: 'Sin actividades pendientes.',
+            'pdfUrl' => route('minutes.pdf.download', $minute->folio),
         ];
     }
 }

@@ -116,7 +116,7 @@
 
                 <section class="view" id="view-correos" data-title="Correos enviados">
                     <div class="page-heading"><div><span class="eyebrow">Trazabilidad</span><h1>Correos enviados</h1><p>Historial de envíos automáticos, reenvíos y alertas.</p></div><button class="button secondary" data-action="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Actualizar historial</button></div>
-                    <div class="mail-layout"><article class="panel mail-list-panel"><div class="table-tools"><div class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="mailSearch" type="search" placeholder="Buscar minuta o destinatario"></div><select id="mailStatusFilter"><option value="all">Todos</option><option value="Enviado">Enviados</option><option value="Pendiente">Pendientes</option><option value="Error">Errores</option></select></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Minuta / cliente</th><th>Tipo</th><th>Estatus</th><th></th></tr></thead><tbody id="mailTable"></tbody></table></div></article><aside class="panel mail-preview" id="mailPreview"></aside></div>
+                    <div class="mail-layout"><article class="panel mail-list-panel"><div class="table-tools"><div class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="mailSearch" type="search" placeholder="Buscar minuta o destinatario"></div><select id="mailStatusFilter"><option value="all">Todos</option><option value="Enviado">Enviados</option><option value="Simulado">Simulados</option><option value="Pendiente">Pendientes</option><option value="Error">Errores</option></select></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Minuta / cliente</th><th>Tipo</th><th>Estatus</th><th></th></tr></thead><tbody id="mailTable"></tbody></table></div></article><aside class="panel mail-preview" id="mailPreview"></aside></div>
                 </section>
 
                 <section class="view" id="view-configuracion" data-title="Configuración">
@@ -142,8 +142,14 @@
                     <div class="creation-note success"><span class="status-dot"></span><div><strong>Base local preparada</strong><span>Los servicios disponibles simulan la consulta de solo lectura a Aspel SAE. La minuta generada sí se guardará en SQLite.</span></div></div>
 
                     <section class="form-section">
-                        <div class="form-section-title"><span>01</span><div><h3>Servicio concluido detectado</h3><p>Selecciona un registro; el sistema recuperará todos sus datos automáticamente.</p></div></div>
-                        <label class="form-field service-picker">Servicio disponible en Aspel SAE<select id="saeServiceSelect" name="sourceService"><option value="SAE-SRV-4832">SAE-SRV-4832 · Industrias Demo Norte · 03/10/2026</option><option value="SAE-SRV-4831">SAE-SRV-4831 · Distribuidora Ejemplo Central · 03/10/2026</option><option value="SAE-SRV-4829">SAE-SRV-4829 · Hotel Demostración del Valle · 02/10/2026</option></select><small>Los servicios son demostrativos; la minuta resultante se almacena en la base local.</small></label>
+                        <div class="form-section-title"><span>01</span><div><h3>Control del tiempo de servicio</h3><p>Selecciona el servicio, inicia el cronómetro al comenzar y finalízalo cuando termine la atención.</p></div></div>
+                        <label class="form-field service-picker">Servicio disponible en Aspel SAE<select id="saeServiceSelect" name="sourceService"><option value="SAE-SRV-4832">SAE-SRV-4832 · Industrias Demo Norte</option><option value="SAE-SRV-4831">SAE-SRV-4831 · Distribuidora Ejemplo Central</option><option value="SAE-SRV-4829">SAE-SRV-4829 · Hotel Demostración del Valle</option></select><small>Los datos empresariales se autocompletan; el tiempo se obtiene del cronómetro del servidor.</small></label>
+                        <input name="sessionId" type="hidden">
+                        <div class="service-timer" id="serviceTimer">
+                            <div class="timer-status"><span class="timer-status-dot" id="timerStatusDot"></span><div><strong id="timerStatusTitle">Servicio sin iniciar</strong><small id="timerStatusText">Presiona “Iniciar servicio” cuando comience la atención.</small></div></div>
+                            <div class="timer-clock"><span>Tiempo real transcurrido</span><strong id="serviceTimerDisplay">00:00:00</strong></div>
+                            <div class="timer-actions"><button class="button primary" id="startServiceButton" type="button"><svg class="icon"><use href="#i-clock"/></svg>Iniciar servicio</button><button class="button danger is-hidden" id="stopServiceButton" type="button">Finalizar servicio</button></div>
+                        </div>
                     </section>
 
                     <section class="form-section auto-section">
@@ -154,11 +160,13 @@
                             <label class="form-field">Fecha del servicio<input name="date" type="date" readonly required></label>
                             <label class="form-field">Hora de inicio<input name="start" type="time" readonly required></label>
                             <label class="form-field">Hora de término<input name="end" type="time" readonly required></label>
+                            <label class="form-field">Tiempo real medido<input name="actualTime" readonly placeholder="Se calculará automáticamente"></label>
+                            <label class="form-field editable-field">Tiempo a descontar (horas)<input name="used" type="number" min="0.01" step="0.01" disabled required><small>El asesor indica el tiempo efectivo que se restará de la póliza.</small></label>
                             <label class="form-field">Asesor responsable<input name="adviser" readonly required></label>
                             <label class="form-field">Estatus del servicio<input name="serviceStatus" readonly></label>
                             <label class="form-field">Número de póliza<input name="policy" readonly required></label>
                             <label class="form-field">Horas contratadas<input name="contracted" type="number" readonly required></label>
-                            <label class="form-field">Horas disponibles<input name="available" type="number" readonly required></label>
+                            <label class="form-field">Horas disponibles antes del servicio<input name="available" type="number" readonly required></label>
                             <label class="form-field">Vigencia<input name="validity" readonly></label>
                             <label class="form-field">Quién reportó<input name="reporter" readonly required></label>
                             <label class="form-field">Quién recibió el servicio<input name="recipient" readonly required></label>
@@ -166,7 +174,7 @@
                     </section>
 
                     <section class="form-section">
-                        <div class="form-section-title"><span>03</span><div><h3>Revisión antes de generar</h3><p>La descripción ya viene registrada; solamente el correo puede corregirse.</p></div></div>
+                        <div class="form-section-title"><span>03</span><div><h3>Revisión antes de generar</h3><p>Confirma el tiempo a descontar y el correo; el resto proviene del servicio seleccionado.</p></div></div>
                         <div class="minute-form-grid">
                             <label class="form-field full">Falla o solicitud reportada <span class="field-source">Desde SAE</span><textarea name="issue" readonly required></textarea></label>
                             <label class="form-field full">Servicio realizado <span class="field-source">Desde SAE</span><textarea name="work" readonly required></textarea></label>
@@ -175,7 +183,7 @@
                         </div>
                     </section>
                 </div>
-                <div class="form-modal-actions"><span>Al confirmar, el sistema calculará el tiempo y creará la minuta como <strong>pendiente de envío</strong>.</span><div><button class="button secondary" type="button" data-close="newMinuteModal">Cancelar</button><button class="button primary" type="submit"><svg class="icon"><use href="#i-file"/></svg>Generar automáticamente</button></div></div>
+                <div class="form-modal-actions"><span>Al confirmar se guardarán el <strong>tiempo real</strong>, el <strong>tiempo descontado</strong> y las horas restantes.</span><div><button class="button secondary" type="button" data-close="newMinuteModal">Cancelar</button><button class="button primary" id="generateMinuteButton" type="submit" disabled><svg class="icon"><use href="#i-file"/></svg>Generar y preparar correo</button></div></div>
             </form>
         </div>
     </div>
