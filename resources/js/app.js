@@ -43,6 +43,7 @@ let selectedMinuteId = null;
 let toastTimer;
 let activeServiceSession = null;
 let serviceTimerInterval = null;
+let serviceTimerBaseline = null;
 
 function statusClass(status) {
     if (['Enviada', 'Enviado', 'Vigente', 'Activo'].includes(status)) return 'sent';
@@ -238,8 +239,9 @@ function localDateParts(value) {
 function currentElapsedSeconds(session) {
     if (!session) return 0;
     if (session.status === 'completed') return Number(session.elapsedSeconds) || 0;
-    if (!session.startedAt) return Number(session.elapsedSeconds) || 0;
-    return Math.max(0, Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000));
+    if (!serviceTimerBaseline) return Number(session.elapsedSeconds) || 0;
+    const locallyElapsed = Math.floor((Date.now() - serviceTimerBaseline.receivedAt) / 1000);
+    return Math.max(0, serviceTimerBaseline.elapsedSeconds + locallyElapsed);
 }
 
 function stopTimerUpdates() {
@@ -260,6 +262,12 @@ function refreshTimerDisplay() {
 function applyServiceSession(session) {
     stopTimerUpdates();
     activeServiceSession = session;
+    serviceTimerBaseline = session?.status === 'running'
+        ? {
+            elapsedSeconds: Number(session.elapsedSeconds) || 0,
+            receivedAt: Date.now(),
+        }
+        : null;
 
     const form = byId('newMinuteForm');
     const timer = byId('serviceTimer');
@@ -350,17 +358,26 @@ function populateAutomatedService(serviceId) {
     });
 }
 
+function prepareServiceDraft() {
+    const form = byId('newMinuteForm');
+    const templateId = form.elements.serviceTemplate.value;
+    const minuteId = form.elements.id.value;
+    form.elements.sourceService.value = `${templateId}-${minuteId}`;
+    return form.elements.sourceService.value;
+}
+
 async function openNewMinute() {
     const form = byId('newMinuteForm');
     form.reset();
     applyServiceSession(null);
     byId('newMinuteId').value = nextMinuteId();
-    populateAutomatedService(form.elements.sourceService.value);
+    populateAutomatedService(form.elements.serviceTemplate.value);
+    const sourceService = prepareServiceDraft();
     byId('newMinuteModal').classList.remove('is-hidden');
     document.body.style.overflow = 'hidden';
-    setTimeout(() => form.elements.sourceService.focus(), 100);
+    setTimeout(() => form.elements.serviceTemplate.focus(), 100);
     try {
-        await loadServiceSession(form.elements.sourceService.value);
+        await loadServiceSession(sourceService);
     } catch (error) {
         showToast(error.message);
     }
@@ -638,8 +655,9 @@ function initializeEvents() {
     byId('saeServiceSelect').addEventListener('change', async (event) => {
         populateAutomatedService(event.target.value);
         applyServiceSession(null);
+        const sourceService = prepareServiceDraft();
         try {
-            await loadServiceSession(event.target.value);
+            await loadServiceSession(sourceService);
             showToast(`Datos y cronómetro de ${event.target.value} actualizados.`);
         } catch (error) {
             showToast(error.message);
@@ -778,6 +796,7 @@ function initializeEvents() {
             const creationPayload = await saveMinuteToDatabase(minuteToSave);
             const savedMinute = creationPayload.data;
             minutes.push(savedMinute);
+            applyServiceSession(null);
             byId('minuteSearch').value = '';
             byId('statusFilter').value = 'all';
             byId('policyFilter').value = 'all';

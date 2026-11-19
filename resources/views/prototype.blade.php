@@ -143,7 +143,8 @@
 
                     <section class="form-section">
                         <div class="form-section-title"><span>01</span><div><h3>Control del tiempo de servicio</h3><p>Selecciona el servicio, inicia el cronómetro al comenzar y finalízalo cuando termine la atención.</p></div></div>
-                        <label class="form-field service-picker">Servicio disponible en Aspel SAE<select id="saeServiceSelect" name="sourceService"><option value="SAE-SRV-4832">SAE-SRV-4832 · Industrias Demo Norte</option><option value="SAE-SRV-4831">SAE-SRV-4831 · Distribuidora Ejemplo Central</option><option value="SAE-SRV-4829">SAE-SRV-4829 · Hotel Demostración del Valle</option></select><small>Los datos empresariales se autocompletan; el tiempo se obtiene del cronómetro del servidor.</small></label>
+                        <label class="form-field service-picker">Servicio disponible en Aspel SAE<select id="saeServiceSelect" name="serviceTemplate"><option value="SAE-SRV-4832">SAE-SRV-4832 · Industrias Demo Norte</option><option value="SAE-SRV-4831">SAE-SRV-4831 · Distribuidora Ejemplo Central</option><option value="SAE-SRV-4829">SAE-SRV-4829 · Hotel Demostración del Valle</option></select><small>Cada minuta crea una atención independiente; los datos empresariales se autocompletan y el tiempo se obtiene del servidor.</small></label>
+                        <input name="sourceService" type="hidden">
                         <input name="sessionId" type="hidden">
                         <div class="service-timer" id="serviceTimer">
                             <div class="timer-status"><span class="timer-status-dot" id="timerStatusDot"></span><div><strong id="timerStatusTitle">Servicio sin iniciar</strong><small id="timerStatusText">Presiona “Iniciar servicio” cuando comience la atención.</small></div></div>
