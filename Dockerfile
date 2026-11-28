@@ -12,6 +12,7 @@ FROM php:8.4-fpm-alpine
 RUN apk add --no-cache \
         bash \
         icu-libs \
+        libpq \
         libxml2 \
         libzip \
         nginx \
@@ -21,11 +22,12 @@ RUN apk add --no-cache \
     && apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
         icu-dev \
+        libpq-dev \
         libxml2-dev \
         libzip-dev \
         oniguruma-dev \
         sqlite-dev \
-    && docker-php-ext-install dom intl mbstring opcache pdo_mysql pdo_sqlite zip \
+    && docker-php-ext-install dom intl mbstring opcache pdo_mysql pdo_pgsql pdo_sqlite zip \
     && apk del .build-deps
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -38,17 +40,24 @@ COPY conf/supervisor/supervisord.conf /etc/supervisord.conf
 COPY conf/start.sh /start.sh
 
 WORKDIR /var/www/html
-COPY . .
+COPY artisan composer.json composer.lock ./
+COPY app ./app
+COPY bootstrap ./bootstrap
+COPY config ./config
+COPY database/migrations ./database/migrations
+COPY public ./public
+COPY resources/views ./resources/views
+COPY routes ./routes
 COPY --from=frontend /app/public/build ./public/build
 
-RUN APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
-        composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader \
-    && chmod +x /start.sh \
-    && chown -R www-data:www-data storage bootstrap/cache database
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --optimize-autoloader \
+    && chmod +x /start.sh
 
 ENV APP_ENV=production
+ENV APP_NAME="Sistema de Minutas Infodata"
 ENV APP_DEBUG=false
 ENV LOG_CHANNEL=stderr
+ENV MAIL_MAILER=array
 
 EXPOSE 80
 

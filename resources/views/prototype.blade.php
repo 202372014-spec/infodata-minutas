@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Infodata | Sistema de Minutas</title>
-    <meta name="description" content="Prototipo navegable del sistema de gestión y envío de minutas de servicio de Infodata.">
+    <meta name="description" content="Sistema de gestión y envío de minutas de servicio de Infodata.">
     <script>
-        window.__MINUTES__ = @json($initialMinutes ?? []);
-        window.__CURRENT_USER__ = @json($initialUser ?? null);
+        window.__MINUTES__ = {{ Illuminate\Support\Js::from($initialMinutes ?? []) }};
+        window.__CURRENT_USER__ = {{ Illuminate\Support\Js::from($initialUser ?? null) }};
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -48,7 +48,7 @@
                     <span><svg class="icon"><use href="#i-check"/></svg> Alertas de horas disponibles</span>
                 </div>
             </div>
-            <p class="login-foot">Prototipo de estancia profesional · 2026</p>
+            <p class="login-foot">Sistema de Minutas Infodata</p>
         </div>
         <div class="login-form-wrap">
             <form class="login-card" id="loginForm">
@@ -56,14 +56,13 @@
                 <span class="eyebrow">Acceso al sistema</span>
                 <h2>Bienvenido</h2>
                 <p class="muted">Ingresa con tu cuenta para consultar y gestionar minutas.</p>
-                <label>Correo electrónico<input id="loginEmail" type="email" value="jonatan@infodata.mx" required></label>
+                <label>Correo electrónico<input id="loginEmail" type="email" autocomplete="username" required></label>
                 <label>Contraseña
-                    <div class="password-field"><input id="loginPassword" type="password" value="Prototipo2026" required><button type="button" id="togglePassword" aria-label="Mostrar contraseña"><svg class="icon"><use href="#i-eye"/></svg></button></div>
+                    <div class="password-field"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" id="togglePassword" aria-label="Mostrar contraseña"><svg class="icon"><use href="#i-eye"/></svg></button></div>
                 </label>
-                <div class="login-options"><label class="check-label"><input type="checkbox" checked> Recordarme</label><button type="button" class="link-button">¿Olvidaste tu contraseña?</button></div>
-                <button class="button primary wide" type="submit">Entrar a la demostración</button>
+                <div class="login-options"><label class="check-label"><input type="checkbox"> Recordarme</label></div>
+                <button class="button primary wide" type="submit">Iniciar sesión</button>
                 <p class="login-error is-hidden" id="loginError" role="alert"></p>
-                <p class="demo-note"><span></span> Base local de demostración; no se envían datos reales.</p>
             </form>
         </div>
     </section>
@@ -77,7 +76,7 @@
                 <button class="nav-item" data-view="correos"><svg class="icon"><use href="#i-mail"/></svg><span>Correos enviados</span></button>
                 <button class="nav-item" data-view="configuracion" data-admin-only><svg class="icon"><use href="#i-settings"/></svg><span>Configuración</span></button>
             </nav>
-            <div class="connection-card"><div class="status-dot"></div><div><strong>Aspel SAE</strong><small>Modo demostración</small></div></div>
+            <div class="connection-card"><div class="status-dot"></div><div><strong>Aspel SAE</strong><small>Documentos importados</small></div></div>
             <div class="sidebar-user"><span class="avatar" data-user-initials>JS</span><div><strong data-user-name>Jonatan Salazar</strong><small data-user-role>Administrador</small></div><button id="logoutButton" aria-label="Cerrar sesión"><svg class="icon"><use href="#i-logout"/></svg></button></div>
         </aside>
 
@@ -85,27 +84,27 @@
             <header class="topbar">
                 <button class="icon-button mobile-menu" id="menuButton" aria-label="Abrir menú"><svg class="icon"><use href="#i-menu"/></svg></button>
                 <div><strong id="topbarTitle">Resumen general</strong><small id="topbarDate">Demostración local</small></div>
-                <div class="topbar-actions"><span class="demo-chip">Base SQLite activa</span><button class="icon-button" aria-label="Notificaciones"><svg class="icon"><use href="#i-bell"/></svg><i></i></button><span class="avatar" data-user-initials>JS</span></div>
+                <div class="topbar-actions"><span class="avatar" data-user-initials></span></div>
             </header>
 
             <main class="main-content">
                 <section class="view is-active" id="view-dashboard" data-title="Resumen general">
                     <div class="page-heading"><div><span class="eyebrow">Panel de control</span><h1>Buen día, <span id="greetingName">Jonatan</span></h1><p>Este es el estado general de las minutas y pólizas de servicio.</p></div><div class="heading-actions"><button class="button secondary" data-action="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Actualizar información</button><button class="button primary" data-action="new-minute"><svg class="icon"><use href="#i-plus"/></svg>Nueva minuta</button></div></div>
                     <div class="metric-grid">
-                        <article class="metric-card teal"><div class="metric-icon"><svg class="icon"><use href="#i-file"/></svg></div><div><span>Total de minutas</span><strong id="metricTotal">0</strong><small>Registros en SQLite</small></div></article>
+                        <article class="metric-card teal"><div class="metric-icon"><svg class="icon"><use href="#i-file"/></svg></div><div><span>Total de minutas</span><strong id="metricTotal">0</strong><small>Minutas guardadas</small></div></article>
                         <article class="metric-card green"><div class="metric-icon"><svg class="icon"><use href="#i-check"/></svg></div><div><span>Minutas enviadas</span><strong id="metricSent">0</strong><small id="metricSentRate">0% del total</small></div></article>
                         <article class="metric-card orange"><div class="metric-icon"><svg class="icon"><use href="#i-clock"/></svg></div><div><span>Pendientes de envío</span><strong id="metricPending">0</strong><small>Requieren seguimiento</small></div></article>
                         <article class="metric-card red"><div class="metric-icon"><svg class="icon"><use href="#i-alert"/></svg></div><div><span>Pólizas con ≤10%</span><strong id="metricCritical">0</strong><small>Alerta calculada</small></div></article>
                     </div>
                     <div class="dashboard-grid">
-                        <article class="panel activity-panel"><div class="panel-title"><div><h2>Actividad de minutas</h2><p>Envíos realizados durante los últimos siete días</p></div><span class="legend"><i></i> Enviadas</span></div><div class="chart" id="activityChart"></div></article>
+                        <article class="panel activity-panel"><div class="panel-title"><div><h2>Actividad de minutas</h2><p>Minutas registradas durante los últimos siete días</p></div></div><div class="chart" id="activityChart"></div></article>
                         <article class="panel alert-panel"><div class="panel-title"><div><h2>Atención prioritaria</h2><p>Pólizas con pocas horas</p></div><button class="link-button" data-go="minutas">Ver todas</button></div><div id="policyAlerts"></div></article>
                     </div>
                     <article class="panel"><div class="panel-title"><div><h2>Minutas recientes</h2><p>Últimos servicios consultados</p></div><button class="link-button" data-go="minutas">Consultar minutas →</button></div><div class="table-wrap"><table><thead><tr><th>Folio</th><th>Cliente</th><th>Servicio</th><th>Póliza</th><th>Envío</th><th>Acción</th></tr></thead><tbody id="recentMinutes"></tbody></table></div></article>
                 </section>
 
                 <section class="view" id="view-minutas" data-title="Minutas de servicio">
-                    <div class="page-heading"><div><span class="eyebrow">Consulta y seguimiento</span><h1>Minutas de servicio</h1><p>Registros guardados en la base local; la consulta a Aspel SAE continúa simulada.</p></div><div class="heading-actions"><button class="button secondary" data-action="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Consultar base</button><button class="button primary" data-action="new-minute"><svg class="icon"><use href="#i-plus"/></svg>Generar nueva minuta</button></div></div>
+                    <div class="page-heading"><div><span class="eyebrow">Consulta y seguimiento</span><h1>Minutas de servicio</h1><p>Consulta las minutas guardadas y el saldo registrado en cada atención.</p></div><div class="heading-actions"><button class="button secondary" data-action="refresh"><svg class="icon"><use href="#i-refresh"/></svg>Actualizar minutas</button><button class="button primary" data-action="new-minute"><svg class="icon"><use href="#i-plus"/></svg>Generar nueva minuta</button></div></div>
                     <div class="summary-strip"><div><span>Resultados</span><strong id="minuteCount">0</strong></div><div><span>Enviadas</span><strong class="text-green" id="summarySent">0</strong></div><div><span>Pendientes</span><strong class="text-orange" id="summaryPending">0</strong></div><div><span>Con error</span><strong class="text-red" id="summaryError">0</strong></div></div>
                     <article class="panel table-panel">
                         <div class="table-tools"><div class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="minuteSearch" type="search" placeholder="Buscar por folio, cliente o asesor"></div><div class="filter-row"><select id="statusFilter"><option value="all">Todos los envíos</option><option value="Enviada">Enviadas</option><option value="Pendiente">Pendientes</option><option value="Error">Con error</option></select><select id="policyFilter"><option value="all">Todas las pólizas</option><option value="critical">≤10% disponible</option><option value="active">Vigentes</option></select></div></div>
@@ -139,12 +138,9 @@
             <div class="modal-head"><div><span class="eyebrow">Automatización con Aspel SAE</span><h2 id="newMinuteTitle">Generar minuta automática</h2></div><button class="icon-button" data-close="newMinuteModal" aria-label="Cerrar"><svg class="icon"><use href="#i-x"/></svg></button></div>
             <form id="newMinuteForm">
                 <div class="form-modal-body">
-                    <div class="creation-note success"><span class="status-dot"></span><div><strong>Base local preparada</strong><span>Los servicios disponibles simulan la consulta de solo lectura a Aspel SAE. La minuta generada sí se guardará en SQLite.</span></div></div>
-
                     <section class="form-section">
-                        <div class="form-section-title"><span>01</span><div><h3>Control del tiempo de servicio</h3><p>Selecciona el servicio, inicia el cronómetro al comenzar y finalízalo cuando termine la atención.</p></div></div>
-                        <label class="form-field service-picker">Servicio disponible en Aspel SAE<select id="saeServiceSelect" name="serviceTemplate"><option value="SAE-SRV-4832">SAE-SRV-4832 · Industrias Demo Norte</option><option value="SAE-SRV-4831">SAE-SRV-4831 · Distribuidora Ejemplo Central</option><option value="SAE-SRV-4829">SAE-SRV-4829 · Hotel Demostración del Valle</option></select><small>Cada minuta crea una atención independiente; los datos empresariales se autocompletan y el tiempo se obtiene del servidor.</small></label>
-                        <input name="sourceService" type="hidden">
+                        <div class="form-section-title"><div><h3>Control del tiempo de servicio</h3><p>Inicia el cronómetro al comenzar la atención y deténlo al finalizar.</p></div></div>
+                        <label class="form-field service-picker">Documento de Aspel SAE<select id="saeServiceSelect" name="sourceService" required disabled></select><small id="saeCatalogStatus" role="status"></small></label>
                         <input name="sessionId" type="hidden">
                         <div class="service-timer" id="serviceTimer">
                             <div class="timer-status"><span class="timer-status-dot" id="timerStatusDot"></span><div><strong id="timerStatusTitle">Servicio sin iniciar</strong><small id="timerStatusText">Presiona “Iniciar servicio” cuando comience la atención.</small></div></div>
@@ -154,10 +150,11 @@
                     </section>
 
                     <section class="form-section auto-section">
-                        <div class="form-section-title"><span>02</span><div><h3>Información recuperada automáticamente</h3><p>Los campos protegidos provienen de SAE y no necesitan captura manual.</p></div><b class="auto-badge"><svg class="icon"><use href="#i-check"/></svg>Autocompletado</b></div>
+                        <div class="form-section-title"><div><h3>Datos del documento y la atención</h3></div></div>
                         <div class="minute-form-grid">
-                            <label class="form-field">Folio que generará el sistema<input id="newMinuteId" name="id" readonly></label>
-                            <label class="form-field span-2">Cliente<input name="client" readonly required></label>
+                            <label class="form-field">Folio en Aspel SAE<input name="folio" readonly></label>
+                            <label class="form-field">Fecha del documento de SAE<input name="sourceDate" readonly></label>
+                            <label class="form-field">Cliente<input name="client" readonly required></label>
                             <label class="form-field">Fecha del servicio<input name="date" type="date" readonly required></label>
                             <label class="form-field">Hora de inicio<input name="start" type="time" readonly required></label>
                             <label class="form-field">Hora de término<input name="end" type="time" readonly required></label>
@@ -175,12 +172,12 @@
                     </section>
 
                     <section class="form-section">
-                        <div class="form-section-title"><span>03</span><div><h3>Revisión antes de generar</h3><p>Confirma el tiempo a descontar y el correo; el resto proviene del servicio seleccionado.</p></div></div>
+                        <div class="form-section-title"><div><h3>Revisión antes de generar</h3><p>Confirma las horas a descontar y el correo del destinatario.</p></div></div>
                         <div class="minute-form-grid">
                             <label class="form-field full">Falla o solicitud reportada <span class="field-source">Desde SAE</span><textarea name="issue" readonly required></textarea></label>
                             <label class="form-field full">Servicio realizado <span class="field-source">Desde SAE</span><textarea name="work" readonly required></textarea></label>
                             <label class="form-field full">Actividad pendiente <span class="field-source">Desde SAE</span><textarea name="pending" readonly required></textarea></label>
-                            <label class="form-field full editable-field">Correo del destinatario <span class="field-source manual">Único dato ajustable</span><input name="email" type="email" required><small>Se recupera del catálogo del cliente, pero puede corregirse antes del envío.</small></label>
+                            <label class="form-field full editable-field">Correo del destinatario<input name="email" type="email" required><small>Verifica la dirección antes de generar la minuta.</small></label>
                         </div>
                     </section>
                 </div>

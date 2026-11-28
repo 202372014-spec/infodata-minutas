@@ -10,6 +10,7 @@ class Minute extends Model
     protected $fillable = [
         'folio',
         'source_service',
+        'sae_policy_id',
         'client_name',
         'service_date',
         'start_time',

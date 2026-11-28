@@ -9,6 +9,7 @@ $alertRecipients = array_values(array_filter(array_map(
 )));
 
 return [
+    'imported_services' => (bool) env('MINUTES_IMPORTED_SERVICES', true),
     'minute_cc' => env('MINUTE_CC_ADDRESS', 'atencion@infodata.mx'),
     'policy_alert_threshold' => (int) env('POLICY_ALERT_THRESHOLD', 10),
     'policy_alert_recipients' => $alertRecipients,

@@ -1,6 +1,7 @@
 services:
   - type: web
-    name: infodata-minutas
+    name: infodata-minutas-final
+    branch: minutas-final
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -14,12 +15,26 @@ services:
       - key: APP_KEY_BASE64
         generateValue: true
       - key: DB_CONNECTION
-        value: sqlite
+        value: pgsql
+      - key: DB_URL
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: BOOTSTRAP_ADMIN_NAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
       - key: LOG_CHANNEL
         value: stderr
       - key: SESSION_DRIVER
         value: database
+      - key: SESSION_COOKIE
+        value: infodata-minutas-final-session
       - key: CACHE_STORE
         value: database
       - key: QUEUE_CONNECTION
         value: database
+      - key: MAIL_MAILER
+        value: array

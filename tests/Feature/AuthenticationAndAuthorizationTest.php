@@ -20,6 +20,18 @@ class AuthenticationAndAuthorizationTest extends TestCase
         $this->get('/api/minutas')->assertRedirect('/');
     }
 
+    public function test_a_deactivated_user_loses_access_even_with_an_existing_session(): void
+    {
+        $user = User::factory()->create(['is_active' => false]);
+
+        $this->actingAs($user)
+            ->getJson('/api/minutas')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'La cuenta no se encuentra activa.');
+
+        $this->assertGuest();
+    }
+
     public function test_an_active_user_can_start_a_real_session(): void
     {
         $user = User::factory()->create([

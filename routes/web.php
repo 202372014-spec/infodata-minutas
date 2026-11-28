@@ -6,14 +6,20 @@ use App\Http\Controllers\EmailDeliveryController;
 use App\Http\Controllers\MinuteController;
 use App\Http\Controllers\MinuteDocumentController;
 use App\Http\Controllers\MinuteEmailController;
+use App\Http\Controllers\SaeImportController;
 use App\Http\Controllers\ServiceSessionController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\EnsureActiveAccount;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [MinuteController::class, 'index'])->name('minutes.index');
-Route::post('/api/acceso', [AuthController::class, 'login'])->middleware('guest')->name('auth.login');
+Route::get('/', [MinuteController::class, 'index'])
+    ->middleware(EnsureActiveAccount::class)
+    ->name('minutes.index');
+Route::post('/api/acceso', [AuthController::class, 'login'])
+    ->middleware(['guest', 'throttle:10,1'])
+    ->name('auth.login');
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', EnsureActiveAccount::class])->group(function (): void {
     Route::get('/api/sesion', [AuthController::class, 'me'])->name('auth.me');
     Route::post('/api/salir', [AuthController::class, 'logout'])->name('auth.logout');
 
@@ -31,6 +37,12 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/api/correos', [EmailDeliveryController::class, 'index'])
         ->name('emails.api.index');
 
+    Route::get('/api/servicios', [ServiceSessionController::class, 'index'])
+        ->middleware('role:administrator,consultant')
+        ->name('services.api.index');
+    Route::post('/api/servicios/importar', [SaeImportController::class, 'store'])
+        ->middleware('role:administrator')
+        ->name('services.api.import');
     Route::get('/api/servicios/{sourceService}/sesion', [ServiceSessionController::class, 'show'])
         ->middleware('role:administrator,consultant')
         ->name('services.session.show');

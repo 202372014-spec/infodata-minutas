@@ -27,16 +27,8 @@ class PolicyAlertService
         }
 
         $recipients = config('minutes.policy_alert_recipients', []);
-        $alert = PolicyAlert::firstOrNew([
+        $state = [
             'policy_number' => $minute->policy_number,
-            'threshold_percentage' => $threshold,
-        ]);
-
-        if ($alert->exists && in_array($alert->status, ['Enviado', 'Simulado'], true)) {
-            return $alert;
-        }
-
-        $alert->fill([
             'client_name' => $minute->client_name,
             'contracted_hours' => $contracted,
             'remaining_hours' => (float) $minute->available_hours,
@@ -45,7 +37,22 @@ class PolicyAlertService
             'status' => 'Pendiente',
             'sent_at' => null,
             'error_message' => null,
-        ])->save();
+        ];
+        $alert = PolicyAlert::query()->firstOrCreate([
+            'policy_identity' => $minute->sae_policy_id ?? hash('sha256', $minute->policy_number),
+            'threshold_percentage' => $threshold,
+        ], $state);
+
+        if (! $alert->wasRecentlyCreated) {
+            $retry = PolicyAlert::query()->whereKey($alert->id)->where('status', 'Error')
+                ->update(['status' => 'Pendiente']);
+
+            if (! $retry) {
+                return $alert->refresh();
+            }
+
+            $alert->update($state);
+        }
 
         $subject = "Alerta: póliza {$minute->policy_number} con {$percentage}% disponible";
         $body = implode("\n", [
