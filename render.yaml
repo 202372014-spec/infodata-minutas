@@ -4,6 +4,7 @@ services:
     branch: minutas-final
     runtime: docker
     plan: free
+    region: oregon
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /up
@@ -17,7 +18,9 @@ services:
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_URL
-        sync: false
+        fromDatabase:
+          name: infodata-minutas-final-db
+          property: connectionString
       - key: DB_SSLMODE
         value: require
       - key: BOOTSTRAP_ADMIN_NAME
@@ -38,3 +41,9 @@ services:
         value: database
       - key: MAIL_MAILER
         value: array
+
+databases:
+  - name: infodata-minutas-final-db
+    plan: free
+    region: oregon
+    ipAllowList: []
